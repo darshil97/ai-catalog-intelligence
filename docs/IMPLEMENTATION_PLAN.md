@@ -8,7 +8,7 @@ Each module gets its own proposal and approval before work starts, and review af
 
 | Module | Name | Depends on | Status |
 |---|---|---|---|
-| M0A | Foundation | — | Not Started |
+| M0A | Foundation | — | In Progress |
 | M0B | Processing platform | M0A | Not Started |
 | M1 | Accounts, suppliers and batches | M0A | Not Started |
 | M2 | File ingestion and storage | M0B, M1 | Not Started |

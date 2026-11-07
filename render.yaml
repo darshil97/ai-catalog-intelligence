@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: ai-catalog-api
+    runtime: python
+    plan: free
+    region: singapore
+    branch: main
+    rootDir: backend
+    buildCommand: pip install uv && uv sync --frozen --no-dev --extra api
+    startCommand: .venv/bin/python server.py
+    healthCheckPath: /health
+    # Waits for GitHub checks, so migrations and the worker deploy first. See D5.
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: APP_ENV
+        value: production
+      - key: API_HOST
+        value: 0.0.0.0
+      # Your Vercel URL.
+      - key: CORS_ORIGINS
+        sync: false
+      # Pooled connection string of the Neon production branch.
+      - key: DATABASE_URL
+        sync: false
+      # Temporary (M0A): a long random value. Remove with the latency endpoint.
+      - key: DIAGNOSTICS_TOKEN
+        sync: false

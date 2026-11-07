@@ -4,9 +4,10 @@
 
 | | |
 |---|---|
-| **Current status** | Architecture approved. **No application code exists.** Everything below describes the planned system unless marked Implemented. |
-| **Implemented so far** | Project documentation only |
-| **Next module** | **M0A Foundation**, which needs its own proposal and approval |
+| **Current status** | **M0A Foundation in progress.** Everything below describes the planned system unless listed as implemented here. |
+| **Implemented so far** | Project documentation. On branch `m0a-foundation`: backend skeleton (config, logging, request IDs, `/health`, temporary latency endpoint, Alembic baseline, placeholder worker), frontend shell, CI, `render.yaml`. Not yet deployed. |
+| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default) and `dev`. `pgvector` 0.8.6 is available; the baseline migration hasn't been applied yet. |
+| **Next steps** | Finish M0A: deploy to Render and Vercel, measure latency, remove the latency endpoint, and complete the model review. Then M0B. |
 | **Last updated** | 2026-11-07 |
 
 Related documents: [Implementation plan](IMPLEMENTATION_PLAN.md) · [Database schema](DATABASE_SCHEMA.md) · [Decisions](DECISIONS.md) · [Glossary](GLOSSARY.md)
@@ -365,7 +366,7 @@ Google-only at launch. Roles are `user` and `admin`, from the token's `role` cla
 | `WorkerController` | `noop` | `ec2` |
 | `PowerController` | `noop` | `os_shutdown` |
 | Idle behavior | Keep polling | Shut down after timeout |
-| Database and auth | Neon `dev` branch | Neon `main` branch |
+| Database and auth | Neon `dev` branch | Neon `production` branch |
 | Storage | Dev S3 bucket | Prod S3 bucket |
 | Config and secrets | `backend/.env`, `frontend/.env.local`, both gitignored | Render and Vercel env settings; on EC2, Parameter Store rendered to a root-owned `.env` before start |
 | AWS auth | Named local profile | Render: scoped IAM user. EC2: instance role. |
@@ -482,9 +483,10 @@ Until then, the architecture assumes:
 
 | When | Action | Status |
 |---|---|---|
-| Before M0A | Create the Neon project in Sydney with Better Auth enabled | Pending |
-| M0A | Paste the Bedrock key into `backend/.env`, after `.gitignore` is committed | Pending |
-| M0A | Confirm how Claude should access Neon. The owner reports the Neon MCP is enabled, but no Neon tools were visible in the architecture session. | Pending |
+| Before M0A | Create the Neon project in Sydney with Better Auth enabled | Done |
+| M0A | Confirm how Claude accesses Neon | Done: Neon MCP, with admin access |
+| M0A | Connect the repo to Render and Vercel, and add the UptimeRobot monitor | Pending |
+| M0A | Paste database URLs and the Bedrock key into `backend/.env` | Pending |
 | Before opening sign-ups | Create a Google OAuth client and publish the consent screen | Pending |
 
 ---

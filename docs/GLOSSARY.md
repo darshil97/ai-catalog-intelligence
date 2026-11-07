@@ -111,7 +111,7 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Watchdog** | A separate check that acts when something stops responding. | Powers off EC2 if the worker is dead. |
 | **Scale to zero** | A service shutting down when idle, and waking on demand. | Neon, after 5 idle minutes. |
 | **Cold start** | The delay while a sleeping service wakes. | Render takes about a minute. |
-| **Neon branch** | An isolated copy of a database, a bit like a Git branch. | `dev` and `main`. |
+| **Neon branch** | An isolated copy of a database, a bit like a Git branch. | `dev` and `production`. |
 | **CU-hour** | Neon's compute unit: size multiplied by running time. | Free tier allows 100 per month. |
 | **Connection pooler** | Shares a few database connections among many clients. | Used at runtime. |
 | **Migration** | A versioned change to the database structure. | An Alembic file adding a table. |
