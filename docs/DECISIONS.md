@@ -9,7 +9,7 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 | # | Decision | Status |
 |---|---|---|
 | [D1](#d1-regions) | Regions | Approved |
-| [D2](#d2-llm-model) | LLM models | Text approved; image model blocked |
+| [D2](#d2-llm-models) | gpt-oss-120b for text, Claude Haiku 4.5 for images | Approved |
 | [D3](#d3-global-inference) | Global inference allowed | Approved |
 | [D4](#d4-cpu-credit-mode) | CPU credits: Unlimited | Approved |
 | [D5](#d5-api-deployment) | Render connected repo, After CI Checks Pass | Approved |
@@ -59,11 +59,13 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 
 ## D2: LLM models
 
-**Status:** Text model approved. Image model chosen by the owner, but blocked by account access.
+**Status:** Approved
 
 **Decision:**
 - **Text-only tasks:** gpt-oss-120b (`openai.gpt-oss-120b-1:0`, in Sydney). Tested and working.
-- **Tasks needing images:** Claude Haiku 5.5 was chosen, but AWS refuses it for this account (below). A replacement or access is still to be decided.
+- **Tasks needing images:** Claude Haiku 4.5 (`au.anthropic.claude-haiku-4-5-20251001-v1:0`, Australia profile). Tested and working. The owner chose Haiku 5.5 first, but AWS refuses it for this account (below).
+
+Moving to Haiku 5.5 later is a config change, if AWS grants access. Haiku 4.5's "EOL no sooner than" date has passed, so watch for a retirement notice.
 
 **Test results, 2026-11-07,** through LangChain from `ap-southeast-2`:
 
