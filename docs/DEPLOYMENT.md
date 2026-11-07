@@ -10,7 +10,7 @@ How this project is deployed, what each service needs, and what to do when somet
 |---|---|---|---|
 | API | Render, free, Singapore | https://YOUR-SERVICE.onrender.com | `main`, `backend/` |
 | Frontend | Vercel | https://ai-catalog-intelligence.vercel.app | `main`, `frontend/` |
-| Database and auth | Neon, Sydney | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`) | Alembic migrations |
+| Database and auth | Neon, Sydney | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`). Branches: `production`, `dev`, `test`. | Alembic migrations |
 | Monitoring | UptimeRobot | `GET /health` on the API, every 5 minutes | — |
 | Worker | EC2, Sydney | **Planned (M0B)** | `main`, `backend/` |
 
@@ -64,6 +64,7 @@ Both are gitignored. Start from the `.env.example` file beside each one.
 | `DATABASE_URL` | Neon `dev` branch, pooling on | **Yes** |
 | `DATABASE_URL_DIRECT` | Neon `dev` branch, pooling off. Used by migrations. | **Yes** |
 | `ADMIN_TOKEN` | Temporary (M0B). Long random value. Protects the test-run endpoints, which are removed in M1. | **Yes** |
+| `TEST_DATABASE_URL` | Neon `test` branch, pooling on. Tests erase its queue tables. | **Yes** |
 | `AWS_BEARER_TOKEN_BEDROCK` | Bedrock API key, local development only | **Yes** |
 | `AWS_REGION` | `ap-southeast-2` | No |
 | `NEXT_PUBLIC_API_URL` (frontend) | `http://localhost:8000` | No |
@@ -127,10 +128,12 @@ alembic upgrade head
 
 ## Running the tests
 
-Database tests need a real Postgres with `pgvector`, and are skipped without `TEST_DATABASE_URL`. CI always runs them. Never point this variable at Neon, because the tests erase the queue tables.
+**Postgres never runs locally.** Database tests use the Neon `test` branch, set as `TEST_DATABASE_URL` in `backend/.env`. They erase its queue tables, so the test setup refuses `production` and the `DATABASE_URL` in `.env`. Without `TEST_DATABASE_URL`, database tests are skipped.
+
+From a laptop, the suite is slow because each query takes about 286 ms to reach Sydney. GitHub CI uses its own Postgres container, which isn't local, and finishes much faster.
 
 ```bash
-TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5432/catalog_test pytest
+pytest
 ```
 
 ## Running the worker locally
@@ -170,10 +173,12 @@ python worker.py
 
 ## Rotating secrets
 
+A new Neon branch starts with **the same role passwords as its parent**, so a password from `dev` or `test` may also work on `production` until it's reset.
+
 | Secret | Where to change it | Then |
 |---|---|---|
 | Neon `production` password | Neon console | Update `DATABASE_URL` on Render |
-| Neon `dev` password | Neon console | Update both URLs in `backend/.env` |
+| Neon `dev` or `test` password | Neon console | Update the URLs in `backend/.env` |
 | Bedrock API key | AWS console | Update `backend/.env` |
 
 ## Worker and AWS (Planned: M0B)

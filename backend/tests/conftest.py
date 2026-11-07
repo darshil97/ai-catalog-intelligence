@@ -4,9 +4,34 @@ Tests that need a database use the `db` fixture, which runs only when TEST_DATAB
 """
 
 import os
+from pathlib import Path
+from urllib.parse import urlparse
 
-# Set before anything loads config, so tests can never reach the Neon URLs in a local .env file.
-_TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "")
+from dotenv import dotenv_values
+
+BACKEND = Path(__file__).resolve().parents[1]
+_DOTENV = dotenv_values(BACKEND / ".env")
+_PRODUCTION_ENDPOINT = "<PROD_DB_ENDPOINT>"
+
+
+def _test_database_url() -> str:
+    """Return the test database URL, refusing any database that holds real data.
+
+    Tests erase the queue tables, so a wrong URL here would be destructive.
+    """
+    url = os.environ.get("TEST_DATABASE_URL") or _DOTENV.get("TEST_DATABASE_URL") or ""
+    if not url:
+        return ""
+    host = urlparse(url).hostname or ""
+    dev_host = urlparse(_DOTENV.get("DATABASE_URL") or "").hostname
+    if _PRODUCTION_ENDPOINT in host or host == dev_host:
+        raise RuntimeError(f"TEST_DATABASE_URL points at a real database: {host}")
+    return url
+
+
+# Set before anything loads config, so tests can never reach the other URLs in a local .env file.
+_TEST_DATABASE_URL = _test_database_url()
+os.environ["TEST_DATABASE_URL"] = _TEST_DATABASE_URL
 _SAFE_URL = _TEST_DATABASE_URL or "postgresql://tests-have-no-database.invalid/none"
 os.environ["DATABASE_URL"] = _SAFE_URL
 os.environ["DATABASE_URL_DIRECT"] = _SAFE_URL
@@ -14,7 +39,6 @@ os.environ["DATABASE_URL_DIRECT"] = _SAFE_URL
 import subprocess  # noqa: E402
 import sys  # noqa: E402
 from collections.abc import Iterator  # noqa: E402
-from pathlib import Path  # noqa: E402
 
 import psycopg  # noqa: E402
 import pytest  # noqa: E402
@@ -23,8 +47,6 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.api.main import app  # noqa: E402
 from app.config import get_config  # noqa: E402
 from app.db import close_pool  # noqa: E402
-
-BACKEND = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(autouse=True)

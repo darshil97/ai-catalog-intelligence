@@ -6,7 +6,7 @@
 |---|---|
 | **Current status** | **M0A complete, M0B in progress.** Everything below describes the planned system unless listed as implemented here. |
 | **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline, placeholder worker), frontend shell, CI, conda environment. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
-| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default) and `dev`. Baseline migration applied to `dev` (`vector` 0.8.6), and not yet to `production`. |
+| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0002` are applied to `dev` and `test`, and none yet to `production`. |
 | **In progress** | **M0B Processing platform, stage B1** (queue and worker) is built locally and uncommitted, awaiting the owner's review. Then B2 (EC2) and B3 (deployment). |
 | **Last updated** | 2026-11-07 |
 
@@ -391,7 +391,7 @@ Setup commands, service settings and environment variables are in [DEPLOYMENT.md
 | S3 | Dev and prod buckets, public access blocked, CORS for the frontend, lifecycle rules, free gateway endpoint |
 | Parameter Store | SecureStrings, standard tier |
 | CloudWatch Logs | Short retention, worker only |
-| AWS Budgets | Alerts at chosen thresholds |
+| AWS Budgets | Existing $20 budget set by the owner |
 
 Install CPU-only torch so it fits on 20 GB, and keep model weights on the EBS volume. The worker runs as a non-root user with systemd hardening, because it parses files uploaded by the public.
 
@@ -526,5 +526,7 @@ Develop one module at a time. For every module:
 At the start of every session, read this file and `GUIDELINES.md`, then continue from the next pending module. If a better technical approach appears, explain the trade-offs and ask for approval before changing an agreed decision.
 
 Ask before any schema change or destructive action made directly on a Neon database.
+
+**Postgres:** never runs locally. All database work, including tests, uses Neon.
 
 **Git:** Claude never runs `git add`, `git commit` or `git push`. Claude leaves changes in the working tree, and the owner reviews and performs those steps.

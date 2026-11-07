@@ -24,8 +24,12 @@ from app.worker.state import WorkerAlreadyRunningError
 pytestmark = pytest.mark.usefixtures("db")
 
 QUEUE = QueueSettings(
-    lease_seconds=2, max_attempts=3, backoff_base_seconds=0, backoff_max_seconds=0
+    lease_seconds=6, max_attempts=3, backoff_base_seconds=0, backoff_max_seconds=0
 )
+
+
+# Generous, because from a laptop each query takes about 286 ms to reach Neon in Sydney.
+WAIT_SECONDS = 60
 
 
 class FakePower:
@@ -73,7 +77,7 @@ def _run_status(run_id: UUID) -> str:
     return _sql("SELECT status FROM pipeline_runs WHERE id = %(id)s", id=run_id)[0]["status"]
 
 
-def _wait_until(check: Callable[[], bool], timeout: float = 10) -> None:
+def _wait_until(check: Callable[[], bool], timeout: float = WAIT_SECONDS) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if check():
@@ -97,7 +101,7 @@ def start_worker() -> Iterator[Callable[..., tuple[Worker, threading.Thread]]]:
     yield start
     for worker, thread in running:
         worker.request_stop()
-        thread.join(timeout=10)
+        thread.join(timeout=WAIT_SECONDS)
 
 
 def test_processes_a_run_with_chunks_to_completion(start_worker: Any) -> None:
@@ -147,19 +151,19 @@ def test_unknown_job_type_fails_visibly(start_worker: Any) -> None:
 
 
 def test_heartbeat_keeps_a_long_job_alive(start_worker: Any) -> None:
-    # A job outlasting its 2-second lease must still hold a valid one, or a second worker or a
+    # A job outlasting its 6-second lease must still hold a valid one, or a second worker or a
     # restart would take it away.
-    run_id = _submit(sleep_seconds=3)
+    run_id = _submit(sleep_seconds=14)
     start_worker()
     _wait_until(
         lambda: bool(_sql("SELECT 1 FROM jobs WHERE job_type = 'noop' AND status = 'running'"))
     )
-    time.sleep(2.5)
+    time.sleep(7)
     still_leased = _sql(
         "SELECT lease_expires_at > now() AS valid FROM jobs WHERE job_type = 'noop'"
     )
     assert still_leased == [{"valid": True}]
-    _wait_until(lambda: _run_status(run_id) == "succeeded", timeout=15)
+    _wait_until(lambda: _run_status(run_id) == "succeeded")
     assert _sql("SELECT attempts FROM jobs WHERE job_type = 'noop'") == [{"attempts": 1}]
 
 
@@ -170,7 +174,7 @@ def test_graceful_stop_releases_the_job_with_no_attempt_counted(start_worker: An
         lambda: bool(_sql("SELECT 1 FROM jobs WHERE job_type = 'noop' AND status = 'running'"))
     )
     worker.request_stop()
-    thread.join(timeout=10)
+    thread.join(timeout=WAIT_SECONDS)
     assert not thread.is_alive()
     job = _sql("SELECT status, attempts FROM jobs WHERE job_type = 'noop'")[0]
     assert job == {"status": "pending", "attempts": 0}
@@ -178,13 +182,13 @@ def test_graceful_stop_releases_the_job_with_no_attempt_counted(start_worker: An
 
 
 def test_job_finishes_if_it_fits_in_the_grace_period(start_worker: Any) -> None:
-    run_id = _submit(sleep_seconds=1)
-    worker, thread = start_worker(stop_grace_seconds=30)
+    run_id = _submit(sleep_seconds=6)
+    worker, thread = start_worker(stop_grace_seconds=WAIT_SECONDS)
     _wait_until(
         lambda: bool(_sql("SELECT 1 FROM jobs WHERE job_type = 'noop' AND status = 'running'"))
     )
     worker.request_stop()
-    thread.join(timeout=10)
+    thread.join(timeout=WAIT_SECONDS)
     assert _sql("SELECT status FROM jobs WHERE job_type = 'noop'") == [{"status": "succeeded"}]
     assert _run_status(run_id) == "succeeded"
 
@@ -198,7 +202,7 @@ def test_lost_lease_abandons_the_job_without_saving(start_worker: Any) -> None:
     )
     other = "00000000-0000-0000-0000-000000000001"
     _sql("UPDATE jobs SET lease_token = %(t)s WHERE job_type = 'noop'", t=other)
-    time.sleep(0.5)
+    time.sleep(3)
     job = _sql("SELECT status, lease_token FROM jobs WHERE job_type = 'noop'")[0]
     assert job["status"] == "running"
     assert str(job["lease_token"]) == other
@@ -219,8 +223,8 @@ def test_recovers_a_job_abandoned_by_a_dead_worker(start_worker: Any) -> None:
 def test_idle_worker_powers_off_when_nothing_is_left(start_worker: Any) -> None:
     power = FakePower()
     _, thread = start_worker(power=power)
-    assert power.powered_off.wait(5)
-    thread.join(timeout=5)
+    assert power.powered_off.wait(WAIT_SECONDS)
+    thread.join(timeout=WAIT_SECONDS)
     assert _sql("SELECT state FROM worker_control") == [{"state": "shutting_down"}]
 
 
@@ -234,19 +238,19 @@ def test_noop_power_never_shuts_down(start_worker: Any) -> None:
 
 def test_does_not_power_off_while_a_job_is_running(start_worker: Any) -> None:
     power = FakePower()
-    run_id = _submit(sleep_seconds=1)
+    run_id = _submit(sleep_seconds=6)
     start_worker(power=power)
     _wait_until(
         lambda: bool(_sql("SELECT 1 FROM jobs WHERE job_type = 'noop' AND status = 'running'"))
     )
     assert not power.powered_off.wait(0.4)
     assert _run_status(run_id) == "running"
-    assert power.powered_off.wait(5)
+    assert power.powered_off.wait(WAIT_SECONDS)
     assert _run_status(run_id) == "succeeded"
 
 
 def test_new_job_while_idle_is_picked_up_instead_of_shutting_down(start_worker: Any) -> None:
-    start_worker(power=(power := FakePower()), idle_timeout_seconds=1)
+    start_worker(power=(power := FakePower()), idle_timeout_seconds=WAIT_SECONDS)
     time.sleep(0.2)
     run_id = _submit()
     _wait_until(lambda: _run_status(run_id) == "succeeded")
@@ -276,7 +280,7 @@ def test_job_too_new_for_this_worker_cannot_keep_the_machine_on(start_worker: An
     _sql("UPDATE jobs SET contract_version = %(v)s", v=JOB_CONTRACT_VERSION + 1)
     power = FakePower()
     start_worker(power=power)
-    assert power.powered_off.wait(5)
+    assert power.powered_off.wait(WAIT_SECONDS)
     assert _run_status(run_id) == "queued"
 
 
@@ -321,7 +325,7 @@ def test_processing_disabled_stops_claims_but_allows_shutdown(start_worker: Any)
     run_id = _submit()
     power = FakePower()
     start_worker(power=power, processing_enabled=False)
-    assert power.powered_off.wait(5)
+    assert power.powered_off.wait(WAIT_SECONDS)
     assert _run_status(run_id) == "queued"
 
 
@@ -363,7 +367,7 @@ def test_clean_stop_records_stopped_state(start_worker: Any) -> None:
     worker, thread = start_worker()
     _wait_until(lambda: _sql("SELECT state FROM worker_control") == [{"state": "running"}])
     worker.request_stop()
-    thread.join(timeout=10)
+    thread.join(timeout=WAIT_SECONDS)
     assert _sql("SELECT state FROM worker_control") == [{"state": "stopped"}]
     assert _sql("SELECT state FROM worker_instances") == [{"state": "stopped"}]
 

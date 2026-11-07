@@ -35,7 +35,7 @@ def test_only_one_migration_head() -> None:
     assert len(result.stdout.strip().splitlines()) == 1
 
 
-@pytest.mark.skipif("TEST_DATABASE_URL" not in os.environ, reason="needs a real Postgres")
+@pytest.mark.skipif(not os.environ.get("TEST_DATABASE_URL"), reason="needs a real Postgres")
 def test_upgrade_and_downgrade_on_real_postgres() -> None:
     env = {"DATABASE_URL_DIRECT": os.environ["TEST_DATABASE_URL"]}
     for command in (("upgrade", "head"), ("downgrade", "base"), ("upgrade", "head")):

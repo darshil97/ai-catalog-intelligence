@@ -1,6 +1,6 @@
 # Database Schema
 
-**Status: planned, except the job queue tables** (`pipeline_runs`, `pipeline_stage_runs`, `jobs`, `processing_errors`, `worker_control`, `worker_instances`, `worker_sessions`), which migration `0002` defines. It hasn't been applied to any Neon branch yet. This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
+**Status: planned, except the job queue tables** (`pipeline_runs`, `pipeline_stage_runs`, `jobs`, `processing_errors`, `worker_control`, `worker_instances`, `worker_sessions`), which migration `0002` defines. It's applied to the Neon `dev` and `test` branches, and not yet to `production`. This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
 PostgreSQL on Neon (Sydney), with the `pgvector` extension.
 
@@ -461,7 +461,7 @@ Runtime for the global EC2 hour cap: `id`, `ec2_instance_id`, `started_at`, `las
   2. *Migrate:* deploy code that uses them, and backfill if needed.
   3. *Contract:* remove old columns in a later release.
 - **Never** make a destructive change in the same release as the code that stops using the column.
-- **Branches:** Neon's default branch is `production`. Local development uses `dev`, and CI uses a Postgres + pgvector container.
+- **Branches:** Neon's default branch is `production`. Local development uses `dev`, tests use `test`, and CI uses a Postgres + pgvector container. Postgres never runs locally.
 - **`neon_auth` is managed by Neon.** We never migrate it.
 - **Direct database changes:** Claude asks before any schema change or destructive action on Neon.
 

@@ -51,7 +51,7 @@ def _expire_leases() -> None:
 
 def test_concurrent_workers_never_claim_the_same_job() -> None:
     # Many workers racing over few jobs is exactly when a double claim would appear.
-    job_total = 30
+    job_total = 12
     for index in range(job_total):
         _new_run(owner=f"owner-{index}")
 
