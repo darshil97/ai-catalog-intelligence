@@ -120,7 +120,7 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Expand/contract** | Changing a schema in safe steps: add new, move over, remove old in a later release. | Keeps running code working. |
 | **CloudFormation** | AWS's service for creating resources from a file. | Infrastructure as code (D8). |
 | **Infrastructure as code** | Describing servers and services in files kept in Git. | `backend/infra/aws/`. |
-| **CI/CD** | Automatically testing (CI) and deploying (CD) code. | `ci.yml` and `deploy.yml`. |
+| **CI/CD** | Automatically testing (CI) and deploying (CD) code. | `ci.yml`. |
 | **Commit SHA** | The unique ID of a code version. | `/health` reports it. |
 | **Deploy key** | A credential giving one machine read access to one repository. | EC2 pulling private code. |
 | **Rollback** | Returning to the previous version after a failure. | `deploy.sh` restores the previous SHA. |

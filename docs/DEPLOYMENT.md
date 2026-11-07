@@ -2,7 +2,7 @@
 
 How this project is deployed, what each service needs, and what to do when something goes wrong. This file holds setting names only. **Never put secret values in it.**
 
-**Status:** the API and frontend are live. The worker, AWS infrastructure and `deploy.yml` arrive in M0B, and their sections are marked Planned.
+**Status:** the API and frontend are live. The worker, AWS infrastructure and deployment jobs arrive in M0B, and their sections are marked Planned.
 
 ## Services
 
@@ -10,7 +10,7 @@ How this project is deployed, what each service needs, and what to do when somet
 |---|---|---|---|
 | API | Render, free, Singapore | https://YOUR-SERVICE.onrender.com | `main`, `backend/` |
 | Frontend | Vercel | https://ai-catalog-intelligence.vercel.app | `main`, `frontend/` |
-| Database and auth | Neon, Sydney | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`) | Alembic migrations |
+| Database and auth | Neon, Sydney | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`). Branches: `production`, `dev`, `test`. | Alembic migrations |
 | Monitoring | UptimeRobot | `GET /health` on the API, every 5 minutes | — |
 | Worker | EC2, Sydney | **Planned (M0B)** | `main`, `backend/` |
 
@@ -63,6 +63,8 @@ Both are gitignored. Start from the `.env.example` file beside each one.
 | `CORS_ORIGINS` | `http://localhost:3000` | No |
 | `DATABASE_URL` | Neon `dev` branch, pooling on | **Yes** |
 | `DATABASE_URL_DIRECT` | Neon `dev` branch, pooling off. Used by migrations. | **Yes** |
+| `ADMIN_TOKEN` | Temporary (M0B). Long random value. Protects the test-run endpoints, which are removed in M1. | **Yes** |
+| `TEST_DATABASE_URL` | Neon `test` branch, pooling on. Tests erase its queue tables. | **Yes** |
 | `AWS_BEARER_TOKEN_BEDROCK` | Bedrock API key, local development only | **Yes** |
 | `AWS_REGION` | `ap-southeast-2` | No |
 | `NEXT_PUBLIC_API_URL` (frontend) | `http://localhost:8000` | No |
@@ -112,7 +114,7 @@ UV_PROJECT_ENVIRONMENT="$CONDA_PREFIX" uv sync --frozen --inexact --extra api --
 ## Database migrations
 
 - **Current state:** the baseline is applied to `dev` only. `production` hasn't been migrated, because nothing there needs it yet.
-- **Production migrations run from GitHub Actions** once `deploy.yml` exists (M0B), in the order migrate → worker → API. Render's pre-deploy commands are documented for paid services, so they aren't used.
+- **Production migrations run from GitHub Actions** once the deployment jobs exist in `ci.yml` (M0B), in the order migrate → worker → API. Render's pre-deploy commands are documented for paid services, so they aren't used.
 - **Expand/contract only:** a migration must stay compatible with the code currently running.
 - **Migrations use the direct URL** (pooling off), and the app uses the pooled one.
 
@@ -123,6 +125,24 @@ alembic upgrade head
 ```
 
 `backend/.env` must point at `dev`. Never point a local `.env` at `production`.
+
+## Running the tests
+
+**Postgres never runs locally.** Database tests use the Neon `test` branch, set as `TEST_DATABASE_URL` in `backend/.env`. They erase its queue tables, so the test setup refuses `production` and the `DATABASE_URL` in `.env`. Without `TEST_DATABASE_URL`, database tests are skipped.
+
+From a laptop, the suite is slow because each query takes about 286 ms to reach Sydney. GitHub CI uses its own Postgres container, which isn't local, and finishes much faster.
+
+```bash
+pytest
+```
+
+## Running the worker locally
+
+Run from `backend/`, in the `ai-catalog` environment. A local worker keeps polling when idle, never powers anything off, and refuses to start against the production database. Stop it with Ctrl+C.
+
+```bash
+python worker.py
+```
 
 ## Verifying a deployment
 
@@ -153,10 +173,12 @@ alembic upgrade head
 
 ## Rotating secrets
 
+A new Neon branch starts with **the same role passwords as its parent**, so a password from `dev` or `test` may also work on `production` until it's reset.
+
 | Secret | Where to change it | Then |
 |---|---|---|
 | Neon `production` password | Neon console | Update `DATABASE_URL` on Render |
-| Neon `dev` password | Neon console | Update both URLs in `backend/.env` |
+| Neon `dev` or `test` password | Neon console | Update the URLs in `backend/.env` |
 | Bedrock API key | AWS console | Update `backend/.env` |
 
 ## Worker and AWS (Planned: M0B)
@@ -165,6 +187,6 @@ Not built yet. The design is in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#9-infras
 
 - AWS stack creation and its parameters.
 - EC2, Parameter Store and GitHub OIDC setup.
-- The `deploy.yml` worker deploy, including draining.
+- The worker deploy in `ci.yml`, including draining.
 - How to pause processing, and how to confirm EC2 has stopped.
 - `processing_enabled` and the global cost caps.

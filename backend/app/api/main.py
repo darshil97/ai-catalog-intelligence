@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health
+from app.api.routes import health, test_runs
 from app.config import get_api_config
 from app.middleware import RequestContextMiddleware
 from app.middleware.request_context import REQUEST_ID_HEADER
@@ -27,3 +27,4 @@ app.add_middleware(
 app.add_middleware(RequestContextMiddleware)
 
 app.include_router(health.router)
+app.include_router(test_runs.router)

@@ -20,3 +20,51 @@ database:
   url: ${DATABASE_URL:-}
   direct_url: ${DATABASE_URL_DIRECT:-}
   connect_timeout_seconds: 15
+  pool_min_size: 0
+  pool_max_size: 3
+  # Idle connections close quickly, so they can't keep Neon awake.
+  pool_max_idle_seconds: 60
+
+# Emergency stop: no new submissions, and the worker stops claiming.
+processing:
+  enabled: ${PROCESSING_ENABLED:-true}
+
+# Temporary (M0B): protects the test-run endpoints until sign-in arrives in M1.
+admin:
+  token: ${ADMIN_TOKEN:-}
+
+compute:
+  # ec2 arrives in stage B2. noop assumes you started worker.py yourself.
+  worker_controller: ${WORKER_CONTROLLER:-noop}
+
+queue:
+  lease_seconds: 120
+  max_attempts: 3
+  backoff_base_seconds: 10
+  # Must stay below worker.idle_timeout_seconds, so a retry can't strand itself.
+  backoff_max_seconds: 120
+
+worker:
+  power_controller: ${WORKER_POWER_CONTROLLER:-noop}
+  code_sha: ${WORKER_CODE_SHA:-unknown}
+  ec2_instance_id: ${WORKER_INSTANCE_ID:-}
+  heartbeat_file: ${WORKER_HEARTBEAT_FILE:-}
+  heartbeat_seconds: 30
+  poll_busy_seconds: 5
+  poll_idle_seconds: 15
+  busy_window_seconds: 60
+  idle_timeout_seconds: 300
+  stop_grace_seconds: 60
+  reaper_interval_seconds: 60
+  # A local worker refuses to start against this database endpoint. Not a secret.
+  production_db_endpoint: <PROD_DB_ENDPOINT>
+
+pipelines:
+  noop:
+    - stage: noop
+      job_type: noop_plan
+
+# Temporary (M0B): bounds for test runs.
+test_runs:
+  max_chunks: 20
+  max_sleep_seconds: 900
