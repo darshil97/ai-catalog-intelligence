@@ -8,7 +8,7 @@ Each module gets its own proposal and approval before work starts, and review af
 
 | Module | Name | Depends on | Status |
 |---|---|---|---|
-| M0A | Foundation | — | Not Started |
+| M0A | Foundation | — | In Progress |
 | M0B | Processing platform | M0A | Not Started |
 | M1 | Accounts, suppliers and batches | M0A | Not Started |
 | M2 | File ingestion and storage | M0B, M1 | Not Started |
@@ -17,7 +17,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | M5A | Image processing | M2, M0B | Not Started |
 | M5B | Image association | M3, M4, M5A | Not Started |
 | M6 | Product normalization | M3, M4 | Not Started |
-| M7 | Catalog enrichment | M6, model choice (D2) | Not Started |
+| M7 | Catalog enrichment | M6 | Not Started |
 | M8 | Catalog validation | M6, M7 | Not Started |
 | M9 | Human review | M5B, M8 | Not Started |
 | M10 | Export | M9 | Not Started |
@@ -40,7 +40,7 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 - `docs/` and root `.gitignore`.
 - `backend/` skeleton: config, logging, request IDs, `GET /health`, Alembic baseline.
 - `frontend/` skeleton on Next.js + TypeScript.
-- CI, `render.yaml`, and deployment to Render and Vercel.
+- CI, and deployment to Render (created manually) and Vercel.
 - **Model review:** list Bedrock models available in Sydney with current pricing, and decide together (D2).
 - Check how Claude accesses Neon (MCP or connection string).
 
@@ -234,7 +234,7 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 
 **Scope**
 - Titles, descriptions and bullet points from verified attributes.
-- LLM provider using the chosen model, with a per-task config entry.
+- LLM calls through LangChain, using gpt-oss-120b for text, with a per-task config entry. If LLM calls first arrive in M4, the setup moves there.
 - Prompts in template files.
 - Global LLM spend cap and `blocked_quota`.
 

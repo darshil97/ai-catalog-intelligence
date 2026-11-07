@@ -9,7 +9,7 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 | # | Decision | Status |
 |---|---|---|
 | [D1](#d1-regions) | Regions | Approved |
-| [D2](#d2-llm-model) | LLM model | Proposed: deferred |
+| [D2](#d2-llm-models) | gpt-oss-120b for text, Claude Haiku 4.5 for images | Approved |
 | [D3](#d3-global-inference) | Global inference allowed | Approved |
 | [D4](#d4-cpu-credit-mode) | CPU credits: Unlimited | Approved |
 | [D5](#d5-api-deployment) | Render connected repo, After CI Checks Pass | Approved |
@@ -29,6 +29,10 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 | [D19](#d19-attribute-provenance-model) | Append-only attribute provenance | Approved |
 | [D20](#d20-image-similarity-and-duplicates) | pHash + OpenCLIP, exact search | Approved |
 | [D21](#d21-guidelines-as-reference) | `GUIDELINES.md` as a reference | Approved |
+| [D22](#d22-local-python-environment) | Conda env `ai-catalog` for local development | Approved |
+| [D23](#d23-render-setup) | Create the Render service manually | Approved |
+| [D24](#d24-langchain-for-llm-calls) | LangChain for all LLM calls | Approved |
+| [D25](#d25-langgraph-only-if-required) | LangGraph only if required | Approved |
 
 ---
 
@@ -53,11 +57,44 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 
 ---
 
-## D2: LLM model
+## D2: LLM models
 
-**Status:** Proposed: deferred by the owner
+**Status:** Approved
 
-**Decision:** Not finalized. At the start of development, review models available in Sydney with current prices, and decide together.
+**Decision:**
+- **Text-only tasks:** gpt-oss-120b (`openai.gpt-oss-120b-1:0`, in Sydney). Tested and working.
+- **Tasks needing images:** Claude Haiku 4.5 (`au.anthropic.claude-haiku-4-5-20251001-v1:0`, Australia profile). Tested and working. The owner chose Haiku 5.5 first, but AWS refuses it for this account (below).
+
+Moving to Haiku 5.5 later is a config change, if AWS grants access. Haiku 4.5's "EOL no sooner than" date has passed, so watch for a retirement notice.
+
+**Test results, 2026-11-07,** through LangChain from `ap-southeast-2`:
+
+| Model | Route | Result |
+|---|---|---|
+| gpt-oss-120b | In Sydney | Text: works |
+| Claude Haiku 5.5 | Australia, Global | **Refused:** "not available for this account" |
+| Claude Sonnet 5.5 | Australia | **Refused:** same message |
+| Claude Haiku 4.5 | Australia, Global | Image: works |
+| Amazon Nova Lite | In Sydney | Image: works |
+| Amazon Nova Pro | In Sydney | Image: works |
+| Mistral Ministral 3 14B | In Sydney | Image: works |
+| Google Gemma 3 27B | In Sydney | Image: works |
+
+Each image test was one small solid-red image, so these show that a model is accessible, not how good it is.
+
+**Model review, 2026-11-07,** using AWS's Sydney price list. Prices are per million tokens at the standard tier:
+
+| Model | Input types | Access from Sydney | Input | Output |
+|---|---|---|---|---|
+| Amazon Nova Micro | Text | In-region | $0.037 | $0.148 |
+| Amazon Nova Lite | Text, image | In-region | $0.063 | $0.252 |
+| gpt-oss-20b | Text | In-region | $0.072 | $0.309 |
+| Claude Haiku 5.5 | Text, image | Australia profile | $0.11 | $0.55 |
+| gpt-oss-120b | Text | In-region | $0.155 | $0.618 |
+| Claude Haiku 4.5 | Text, image | Australia profile | $1.10 | $5.50 |
+| Claude Sonnet 5.5 | Text, image | Australia profile | $2.20 | $11.00 |
+
+Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result shows.
 
 **Context:** The owner mentioned gpt-oss-120b, gpt-oss-20b and Claude Haiku 4.5 as possibilities, then chose to base the decision on what the account can actually access.
 
@@ -402,3 +439,73 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 **Rationale:** Keep its useful patterns, and adapt where the project needs to.
 
 **Consequences:** Intentional differences get recorded here, such as D11.
+
+---
+
+## D22: Local Python environment
+
+**Status:** Approved
+
+**Decision:** Local development uses a conda environment named `ai-catalog`, not `backend/.venv`. `uv` installs locked versions into it. CI, Render and EC2 keep `uv` with `uv.lock`.
+
+**Context:** The owner uses Anaconda.
+
+**Alternatives considered:** A project `.venv`. Conda everywhere, which isn't available on Render's Python runtime and would replace the lockfile.
+
+**Rationale:** It matches the owner's tools, and local, CI and production all install the same locked versions.
+
+**Consequences:** Local installs need `UV_PROJECT_ENVIRONMENT="$CONDA_PREFIX"` and `--inexact`. Without `--inexact`, `uv sync` removes conda's own packages and breaks the environment.
+
+---
+
+## D23: Render setup
+
+**Status:** Approved
+
+**Decision:** Create the Render service manually in the dashboard, with no `render.yaml`. Settings are recorded in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#render-service-created-manually).
+
+**Context:** Requested by the owner. There's one service, so a Blueprint adds little. D5's behavior is unchanged.
+
+**Alternatives considered:** A `render.yaml` Blueprint, which keeps settings in Git.
+
+**Rationale:** Simple for one service.
+
+**Consequences:** Dashboard changes aren't tracked in Git, so the settings table must be kept up to date by hand.
+
+---
+
+## D24: LangChain for LLM calls
+
+**Status:** Approved
+
+**Decision:** All LLM calls go through LangChain, using `ChatBedrockConverse` from `langchain-aws`. Application code doesn't call Bedrock or a model provider's SDK directly.
+
+**Context:** Requested by the owner. Tested on 2026-11-07 with `langchain-aws` 1.9.2 and `langchain-core` 1.7.6.
+
+**Alternatives considered:** Direct Bedrock Converse calls through `boto3`, with fewer dependencies. Provider SDKs, which would differ per model.
+
+**Rationale:** One interface across models and providers, so moving a task to another model stays a config change.
+
+**Consequences:**
+- LangChain belongs in the `worker` extra only, added by the first module that makes LLM calls. It never loads in the API, and the import-boundary test will enforce that.
+- Replies differ by model: gpt-oss-120b returns `reasoning_content` blocks alongside its text, while Claude Haiku 4.5 returned a plain string. A small helper must normalize these, and reasoning must stay out of stored content.
+- Schema validation and the `model_runs` record (D15) still apply to every call.
+
+---
+
+## D25: LangGraph only if required
+
+**Status:** Approved
+
+**Decision:** LangGraph is optional, and is added only if a module needs it. It is not part of the base design.
+
+**Context:** Stated by the owner. The pipeline's stages are already orchestrated by the job queue (D15).
+
+**Alternatives considered:** Adopting it from the start.
+
+**Rationale:** The current pipeline is a fixed sequence that doesn't need it. It would only earn its place for a multi-step LLM flow with branching or retry loops inside a single job.
+
+**Consequences:**
+- A module proposing LangGraph must explain why plain code won't do, and get approval.
+- If used, it runs inside a job. The PostgreSQL queue stays responsible for claiming, retries and recovery.
+- The MVP exclusion of autonomous agents still stands.

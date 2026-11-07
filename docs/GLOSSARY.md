@@ -79,6 +79,8 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Signal** | One independent piece of evidence for an image↔SKU match. | SKU in the filename. |
 | **LLM** | Large Language Model: an AI that reads and writes text. | Writing product descriptions. |
 | **Amazon Bedrock** | AWS's service for calling AI models. | Called by the worker. |
+| **LangChain** | A Python library giving one interface for calling different AI models. | All LLM calls go through it. |
+| **LangGraph** | A library for LLM workflows with branching and loops, built around LangChain. | Used only if a module truly needs it. |
 | **Inference profile** | A Bedrock ID that routes requests across a defined set of regions. | Global or Australia routing. |
 | **Token (AI)** | A small piece of text used to measure and bill LLM use. | Price is per million tokens. Different from a JWT. |
 | **Schema validation** | Checking data matches an expected structure. | Rejecting a malformed LLM response. |
@@ -111,7 +113,7 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Watchdog** | A separate check that acts when something stops responding. | Powers off EC2 if the worker is dead. |
 | **Scale to zero** | A service shutting down when idle, and waking on demand. | Neon, after 5 idle minutes. |
 | **Cold start** | The delay while a sleeping service wakes. | Render takes about a minute. |
-| **Neon branch** | An isolated copy of a database, a bit like a Git branch. | `dev` and `main`. |
+| **Neon branch** | An isolated copy of a database, a bit like a Git branch. | `dev` and `production`. |
 | **CU-hour** | Neon's compute unit: size multiplied by running time. | Free tier allows 100 per month. |
 | **Connection pooler** | Shares a few database connections among many clients. | Used at runtime. |
 | **Migration** | A versioned change to the database structure. | An Alembic file adding a table. |

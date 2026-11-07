@@ -4,9 +4,10 @@
 
 | | |
 |---|---|
-| **Current status** | Architecture approved. **No application code exists.** Everything below describes the planned system unless marked Implemented. |
-| **Implemented so far** | Project documentation only |
-| **Next module** | **M0A Foundation**, which needs its own proposal and approval |
+| **Current status** | **M0A Foundation in progress.** Everything below describes the planned system unless listed as implemented here. |
+| **Implemented so far** | Project documentation. On branch `m0a-foundation`: backend skeleton (config, logging, request IDs, `/health`, temporary latency endpoint, Alembic baseline, placeholder worker), frontend shell, CI, conda environment. Not yet deployed. |
+| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default) and `dev`. Baseline migration applied to `dev` (`vector` 0.8.6), and not yet to `production`. |
+| **Next steps** | Finish M0A: deploy to Render and Vercel, measure latency, remove the latency endpoint, and complete the model review. Then M0B. |
 | **Last updated** | 2026-11-07 |
 
 Related documents: [Implementation plan](IMPLEMENTATION_PLAN.md) · [Database schema](DATABASE_SCHEMA.md) · [Decisions](DECISIONS.md) · [Glossary](GLOSSARY.md)
@@ -101,7 +102,8 @@ Do not expand scope without explaining the trade-offs and getting approval.
 | Authentication | Neon Auth (managed Better Auth) with Google | Sydney |
 | Vector search | pgvector on Neon | Sydney |
 | File storage | AWS S3 | Sydney |
-| LLM | Amazon Bedrock. **Model not chosen yet** (D2). | Sydney |
+| LLM | Amazon Bedrock through LangChain (D24). Text: gpt-oss-120b. Images: Claude Haiku 4.5. | Sydney (Haiku: Australia profile) |
+| LLM orchestration | LangGraph only if a module needs it (D25) | Worker |
 | Image embeddings | OpenCLIP `ViT-B-32`, `laion2b_s34b_b79k`, CPU | Worker |
 | Duplicate detection | Perceptual hashing (pHash) | Worker |
 | Image processing | OpenCV and Pillow | Worker |
@@ -121,7 +123,6 @@ Users are in India. Why these regions: [D1](DECISIONS.md#d1-regions).
 ai-catalog-intelligence/
 ├── README.md
 ├── GUIDELINES.md                 # reference for backend Python work
-├── render.yaml
 ├── docs/
 ├── .github/workflows/            # ci.yml, deploy.yml
 ├── frontend/                     # Vercel root directory
@@ -153,7 +154,7 @@ ai-catalog-intelligence/
         ├── vision/               # phash, embedders/, ocr/, clustering  [worker only]
         ├── matching/signals/     # image↔SKU evidence
         ├── normalization/        # units, categories, mapping (deterministic)
-        ├── enrichment/llm/       # LLM provider registry
+        ├── enrichment/llm/       # LLM access through LangChain
         ├── validation/rules/
         ├── review/
         ├── export/exporters/     # csv, xlsx, shopify
@@ -359,18 +360,41 @@ Google-only at launch. Roles are `user` and `admin`, from the token's `role` cla
 
 | Concern | Local | Production |
 |---|---|---|
+| Python environment | Conda env `ai-catalog` | `uv` environment built during deploy |
 | API | `python backend/server.py` | Render |
 | Worker | `python backend/worker.py` | systemd on EC2 |
 | Frontend | `npm run dev` in `frontend/` | Vercel |
 | `WorkerController` | `noop` | `ec2` |
 | `PowerController` | `noop` | `os_shutdown` |
 | Idle behavior | Keep polling | Shut down after timeout |
-| Database and auth | Neon `dev` branch | Neon `main` branch |
+| Database and auth | Neon `dev` branch | Neon `production` branch |
 | Storage | Dev S3 bucket | Prod S3 bucket |
 | Config and secrets | `backend/.env`, `frontend/.env.local`, both gitignored | Render and Vercel env settings; on EC2, Parameter Store rendered to a root-owned `.env` before start |
 | AWS auth | Named local profile | Render: scoped IAM user. EC2: instance role. |
 
 A local-mode worker refuses to start if its database host is the production one.
+
+**Local backend setup** (from `backend/`). `uv` installs the exact locked versions into the conda env. `--inexact` stops it removing conda's own packages.
+
+```bash
+conda env create -f environment.yml
+conda activate ai-catalog
+UV_PROJECT_ENVIRONMENT="$CONDA_PREFIX" uv sync --frozen --inexact --extra api --extra migrate
+```
+
+### Render service (created manually)
+
+| Setting | Value |
+|---|---|
+| Type, plan, region | Web Service, Free, Singapore |
+| Branch | `main` |
+| Root directory | `backend` |
+| Runtime | Python |
+| Build command | `pip install uv && uv sync --frozen --no-dev --extra api` |
+| Start command | `.venv/bin/python server.py` |
+| Health check path | `/health` |
+| Auto-deploy | After CI Checks Pass |
+| Environment variables | `PYTHON_VERSION=3.12.7`, `APP_ENV=production`, `API_HOST=0.0.0.0`, `CORS_ORIGINS` (Vercel URL), `DATABASE_URL` (`production` pooled string), and temporarily `DIAGNOSTICS_TOKEN` |
 
 ### AWS resources in Sydney (`ap-southeast-2`)
 
@@ -455,12 +479,20 @@ Target: about $3–5/month. Worst case at the example 30-hour cap under full loa
 
 ## 10. LLM approach
 
-**The model is not chosen.** At the start of development, after `.gitignore` is committed, the owner pastes a Bedrock API key into `backend/.env`. Claude then lists the models available in Sydney, finds current prices from AWS's public pricing sources, and presents a table for a joint decision. The key is for this review and local development only. EC2 uses its instance role, and the key never goes to EC2 or GitHub.
+All LLM calls go through LangChain (D24). LangGraph is added only if a module needs it (D25).
 
-Until then, the architecture assumes:
+| Need | Model | Status |
+|---|---|---|
+| Text only | gpt-oss-120b (`openai.gpt-oss-120b-1:0`) | Tested and working |
+| Images | Claude Haiku 4.5 (`au.anthropic.claude-haiku-4-5-20251001-v1:0`) | Tested and working. AWS refuses Haiku 5.5 for this account (D2). |
+
+The Bedrock key in `backend/.env` is for local development only. EC2 uses its instance role, and the key never goes to EC2 or GitHub.
+
+The architecture assumes:
 - Each task (extraction, enrichment) has its own model entry in config, so switching needs no code change.
-- No dependence on a model reading images. If the chosen model is text-only, images go through OCR and CLIP.
+- OCR and CLIP handle images unless a task actually needs a model to read them.
 - No dependence on provider structured outputs. Every response is validated against a Pydantic schema, malformed output is retried a limited number of times, then sent to review.
+- Model reasoning output is never stored as content.
 - Supplier text is treated as data, not instructions.
 
 ---
@@ -482,9 +514,11 @@ Until then, the architecture assumes:
 
 | When | Action | Status |
 |---|---|---|
-| Before M0A | Create the Neon project in Sydney with Better Auth enabled | Pending |
-| M0A | Paste the Bedrock key into `backend/.env`, after `.gitignore` is committed | Pending |
-| M0A | Confirm how Claude should access Neon. The owner reports the Neon MCP is enabled, but no Neon tools were visible in the architecture session. | Pending |
+| Before M0A | Create the Neon project in Sydney with Better Auth enabled | Done |
+| M0A | Confirm how Claude accesses Neon | Done: Neon MCP, with admin access |
+| M0A | Connect the repo to Render and Vercel, and add the UptimeRobot monitor | Pending |
+| M0A | Add the Bedrock key to `backend/.env` | Done |
+| M0A | Choose LLM models (D2) | Done: gpt-oss-120b, Claude Haiku 4.5 |
 | Before opening sign-ups | Create a Google OAuth client and publish the consent screen | Pending |
 
 ---

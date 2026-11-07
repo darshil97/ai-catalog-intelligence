@@ -458,7 +458,7 @@ Runtime for the global EC2 hour cap: `id`, `ec2_instance_id`, `started_at`, `las
   2. *Migrate:* deploy code that uses them, and backfill if needed.
   3. *Contract:* remove old columns in a later release.
 - **Never** make a destructive change in the same release as the code that stops using the column.
-- **Local and CI:** a Neon `dev` branch for development, and a Postgres + pgvector container in CI.
+- **Branches:** Neon's default branch is `production`. Local development uses `dev`, and CI uses a Postgres + pgvector container.
 - **`neon_auth` is managed by Neon.** We never migrate it.
 - **Direct database changes:** Claude asks before any schema change or destructive action on Neon.
 
