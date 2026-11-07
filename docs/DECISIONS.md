@@ -29,6 +29,8 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 | [D19](#d19-attribute-provenance-model) | Append-only attribute provenance | Approved |
 | [D20](#d20-image-similarity-and-duplicates) | pHash + OpenCLIP, exact search | Approved |
 | [D21](#d21-guidelines-as-reference) | `GUIDELINES.md` as a reference | Approved |
+| [D22](#d22-local-python-environment) | Conda env `ai-catalog` for local development | Approved |
+| [D23](#d23-render-setup) | Create the Render service manually | Approved |
 
 ---
 
@@ -57,7 +59,19 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 
 **Status:** Proposed: deferred by the owner
 
-**Decision:** Not finalized. At the start of development, review models available in Sydney with current prices, and decide together.
+**Decision:** Not finalized. At the start of development, review models available in Sydney with current prices, and decide together. The review was run on 2026-11-07, using AWS's Sydney price list. Prices are per million tokens at the standard tier:
+
+| Model | Input types | Access from Sydney | Input | Output |
+|---|---|---|---|---|
+| Amazon Nova Micro | Text | In-region | $0.037 | $0.148 |
+| Amazon Nova Lite | Text, image | In-region | $0.063 | $0.252 |
+| gpt-oss-20b | Text | In-region | $0.072 | $0.309 |
+| Claude Haiku 5.5 | Text, image | Australia profile | $0.11 | $0.55 |
+| gpt-oss-120b | Text | In-region | $0.155 | $0.618 |
+| Claude Haiku 4.5 | Text, image | Australia profile | $1.10 | $5.50 |
+| Claude Sonnet 5.5 | Text, image | Australia profile | $2.20 | $11.00 |
+
+The list shows what the account can see in Sydney. No model has been invoked yet.
 
 **Context:** The owner mentioned gpt-oss-120b, gpt-oss-20b and Claude Haiku 4.5 as possibilities, then chose to base the decision on what the account can actually access.
 
@@ -402,3 +416,35 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 **Rationale:** Keep its useful patterns, and adapt where the project needs to.
 
 **Consequences:** Intentional differences get recorded here, such as D11.
+
+---
+
+## D22: Local Python environment
+
+**Status:** Approved
+
+**Decision:** Local development uses a conda environment named `ai-catalog`, not `backend/.venv`. `uv` installs locked versions into it. CI, Render and EC2 keep `uv` with `uv.lock`.
+
+**Context:** The owner uses Anaconda.
+
+**Alternatives considered:** A project `.venv`. Conda everywhere, which isn't available on Render's Python runtime and would replace the lockfile.
+
+**Rationale:** It matches the owner's tools, and local, CI and production all install the same locked versions.
+
+**Consequences:** Local installs need `UV_PROJECT_ENVIRONMENT="$CONDA_PREFIX"` and `--inexact`. Without `--inexact`, `uv sync` removes conda's own packages and breaks the environment.
+
+---
+
+## D23: Render setup
+
+**Status:** Approved
+
+**Decision:** Create the Render service manually in the dashboard, with no `render.yaml`. Settings are recorded in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#render-service-created-manually).
+
+**Context:** Requested by the owner. There's one service, so a Blueprint adds little. D5's behavior is unchanged.
+
+**Alternatives considered:** A `render.yaml` Blueprint, which keeps settings in Git.
+
+**Rationale:** Simple for one service.
+
+**Consequences:** Dashboard changes aren't tracked in Git, so the settings table must be kept up to date by hand.

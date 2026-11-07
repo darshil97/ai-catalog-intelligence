@@ -1,0 +1,7 @@
+# Local development environment. Create it with: conda env create -f environment.yml
+name: ai-catalog
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - uv

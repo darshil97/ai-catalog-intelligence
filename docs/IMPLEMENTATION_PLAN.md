@@ -40,7 +40,7 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 - `docs/` and root `.gitignore`.
 - `backend/` skeleton: config, logging, request IDs, `GET /health`, Alembic baseline.
 - `frontend/` skeleton on Next.js + TypeScript.
-- CI, `render.yaml`, and deployment to Render and Vercel.
+- CI, and deployment to Render (created manually) and Vercel.
 - **Model review:** list Bedrock models available in Sydney with current pricing, and decide together (D2).
 - Check how Claude accesses Neon (MCP or connection string).
 
