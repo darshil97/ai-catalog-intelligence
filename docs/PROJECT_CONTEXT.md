@@ -102,7 +102,8 @@ Do not expand scope without explaining the trade-offs and getting approval.
 | Authentication | Neon Auth (managed Better Auth) with Google | Sydney |
 | Vector search | pgvector on Neon | Sydney |
 | File storage | AWS S3 | Sydney |
-| LLM | Amazon Bedrock. **Model not chosen yet** (D2). | Sydney |
+| LLM | Amazon Bedrock through LangChain (D24). Text: gpt-oss-120b. Images: **blocked, see D2.** | Sydney |
+| LLM orchestration | LangGraph only if a module needs it (D25) | Worker |
 | Image embeddings | OpenCLIP `ViT-B-32`, `laion2b_s34b_b79k`, CPU | Worker |
 | Duplicate detection | Perceptual hashing (pHash) | Worker |
 | Image processing | OpenCV and Pillow | Worker |
@@ -153,7 +154,7 @@ ai-catalog-intelligence/
         ├── vision/               # phash, embedders/, ocr/, clustering  [worker only]
         ├── matching/signals/     # image↔SKU evidence
         ├── normalization/        # units, categories, mapping (deterministic)
-        ├── enrichment/llm/       # LLM provider registry
+        ├── enrichment/llm/       # LLM access through LangChain
         ├── validation/rules/
         ├── review/
         ├── export/exporters/     # csv, xlsx, shopify
@@ -478,12 +479,20 @@ Target: about $3–5/month. Worst case at the example 30-hour cap under full loa
 
 ## 10. LLM approach
 
-**The model is not chosen.** At the start of development, after `.gitignore` is committed, the owner pastes a Bedrock API key into `backend/.env`. Claude then lists the models available in Sydney, finds current prices from AWS's public pricing sources, and presents a table for a joint decision. The key is for this review and local development only. EC2 uses its instance role, and the key never goes to EC2 or GitHub.
+All LLM calls go through LangChain (D24). LangGraph is added only if a module needs it (D25).
 
-Until then, the architecture assumes:
+| Need | Model | Status |
+|---|---|---|
+| Text only | gpt-oss-120b (`openai.gpt-oss-120b-1:0`) | Tested and working |
+| Images | Claude Haiku 5.5 chosen | **AWS refuses it for this account. Replacement or access to be decided** (D2) |
+
+The Bedrock key in `backend/.env` is for local development only. EC2 uses its instance role, and the key never goes to EC2 or GitHub.
+
+The architecture assumes:
 - Each task (extraction, enrichment) has its own model entry in config, so switching needs no code change.
-- No dependence on a model reading images. If the chosen model is text-only, images go through OCR and CLIP.
+- OCR and CLIP handle images unless a task actually needs a model to read them.
 - No dependence on provider structured outputs. Every response is validated against a Pydantic schema, malformed output is retried a limited number of times, then sent to review.
+- Model reasoning output is never stored as content.
 - Supplier text is treated as data, not instructions.
 
 ---
@@ -509,7 +518,8 @@ Until then, the architecture assumes:
 | M0A | Confirm how Claude accesses Neon | Done: Neon MCP, with admin access |
 | M0A | Connect the repo to Render and Vercel, and add the UptimeRobot monitor | Pending |
 | M0A | Add the Bedrock key to `backend/.env` | Done |
-| M0A | Choose the LLM model (D2) | Pending |
+| M0A | Choose the LLM model for text (D2) | Done: gpt-oss-120b |
+| Before M4 | Choose an image model, or get access to Claude Haiku 5.5 (D2) | Pending |
 | Before opening sign-ups | Create a Google OAuth client and publish the consent screen | Pending |
 
 ---

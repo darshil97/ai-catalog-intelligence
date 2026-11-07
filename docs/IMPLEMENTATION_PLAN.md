@@ -17,7 +17,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | M5A | Image processing | M2, M0B | Not Started |
 | M5B | Image association | M3, M4, M5A | Not Started |
 | M6 | Product normalization | M3, M4 | Not Started |
-| M7 | Catalog enrichment | M6, model choice (D2) | Not Started |
+| M7 | Catalog enrichment | M6 | Not Started |
 | M8 | Catalog validation | M6, M7 | Not Started |
 | M9 | Human review | M5B, M8 | Not Started |
 | M10 | Export | M9 | Not Started |
@@ -234,7 +234,7 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 
 **Scope**
 - Titles, descriptions and bullet points from verified attributes.
-- LLM provider using the chosen model, with a per-task config entry.
+- LLM calls through LangChain, using gpt-oss-120b for text, with a per-task config entry. If LLM calls first arrive in M4, the setup moves there.
 - Prompts in template files.
 - Global LLM spend cap and `blocked_quota`.
 
