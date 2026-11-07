@@ -20,8 +20,3 @@ database:
   url: ${DATABASE_URL:-}
   direct_url: ${DATABASE_URL_DIRECT:-}
   connect_timeout_seconds: 15
-
-diagnostics:
-  # Temporary (M0A): the latency endpoint stays hidden unless a token is set.
-  token: ${DIAGNOSTICS_TOKEN:-}
-  latency_samples: 10

@@ -4,10 +4,10 @@
 
 | | |
 |---|---|
-| **Current status** | **M0A Foundation in progress.** Everything below describes the planned system unless listed as implemented here. |
-| **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, temporary latency endpoint, Alembic baseline, placeholder worker), frontend shell, CI, conda environment. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
+| **Current status** | **M0A Foundation complete.** Everything below describes the planned system unless listed as implemented here. |
+| **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline, placeholder worker), frontend shell, CI, conda environment. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
 | **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default) and `dev`. Baseline migration applied to `dev` (`vector` 0.8.6), and not yet to `production`. |
-| **Next steps** | Finish M0A: measure API↔Neon latency, then remove the latency endpoint. Then M0B. |
+| **Next module** | **M0B Processing platform**, which needs its own proposal and approval |
 | **Last updated** | 2026-11-07 |
 
 Related documents: [Implementation plan](IMPLEMENTATION_PLAN.md) · [Database schema](DATABASE_SCHEMA.md) · [Decisions](DECISIONS.md) · [Deployment](DEPLOYMENT.md) · [Glossary](GLOSSARY.md)
@@ -213,6 +213,11 @@ Rules that must hold:
 - `/health` never touches the database, so UptimeRobot can't keep Neon awake.
 - Keep endpoints low on queries, because API↔Neon crosses Singapore↔Sydney.
 - All file transfer goes directly between the browser and S3.
+
+**Measured API↔Neon latency** (Render Singapore to Neon Sydney, 2026-11-07, through the pooler): about 95 ms per query, and about 580 ms to open a new connection with Neon awake (about 1,200 ms in the first run, which may have included waking Neon). So when the API starts using the database:
+- **Reuse connections:** a small pool, because a new connection per request would add over half a second.
+- **Limit queries:** a 3-query endpoint spends about 285 ms on the database alone.
+- **Check before relying on it:** confirm that idle pooled connections still let Neon suspend.
 
 ### Pipeline
 

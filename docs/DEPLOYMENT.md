@@ -38,8 +38,7 @@ Set under the service's **Environment** tab. Saving redeploys the service.
 | `APP_ENV` | `production` | No |
 | `API_HOST` | `0.0.0.0` | No |
 | `CORS_ORIGINS` | `https://ai-catalog-intelligence.vercel.app`. Comma-separated, no trailing slash. | No |
-| `DATABASE_URL` | Neon `production` branch, connection string with pooling on | **Yes** |
-| `DIAGNOSTICS_TOKEN` | Temporary, M0A only. Random value from `openssl rand -hex 32`. Delete after the latency measurement. | **Yes** |
+| `DATABASE_URL` | Neon `production` branch, connection string with pooling on. Nothing uses it until M0B or M1. | **Yes** |
 
 Render sets `PORT` and `RENDER_GIT_COMMIT` itself. `/health` reports the second as `code_sha`.
 
@@ -66,7 +65,6 @@ Both are gitignored. Start from the `.env.example` file beside each one.
 | `DATABASE_URL_DIRECT` | Neon `dev` branch, pooling off. Used by migrations. | **Yes** |
 | `AWS_BEARER_TOKEN_BEDROCK` | Bedrock API key, local development only | **Yes** |
 | `AWS_REGION` | `ap-southeast-2` | No |
-| `DIAGNOSTICS_TOKEN` | Leave empty | — |
 | `NEXT_PUBLIC_API_URL` (frontend) | `http://localhost:8000` | No |
 
 ## First-time setup

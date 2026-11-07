@@ -51,7 +51,7 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 **Rationale:** Worker and database share a region, so the chatty processing path is fast. Singapore is close to both Sydney and India.
 
 **Consequences:**
-- API↔Neon crosses regions (roughly 95 ms by estimate, to be measured in M0A), so endpoints must stay low on queries.
+- API↔Neon crosses regions: about 95 ms per query and about 580 ms per new connection, measured in M0A. Endpoints must stay low on queries and reuse connections.
 - India↔Sydney adds latency to uploads and downloads. Small thumbnails and POC limits reduce the impact.
 - Sydney's EC2 price is higher than Mumbai's.
 

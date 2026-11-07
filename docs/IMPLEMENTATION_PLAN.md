@@ -8,7 +8,7 @@ Each module gets its own proposal and approval before work starts, and review af
 
 | Module | Name | Depends on | Status |
 |---|---|---|---|
-| M0A | Foundation | — | In Progress |
+| M0A | Foundation | — | Completed |
 | M0B | Processing platform | M0A | Not Started |
 | M1 | Accounts, suppliers and batches | M0A | Not Started |
 | M2 | File ingestion and storage | M0B, M1 | Not Started |
@@ -50,6 +50,12 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 - API↔Neon latency is measured and recorded.
 - The model table is delivered to the owner.
 - `.env` files are confirmed ignored before any secret is added.
+
+**Results (2026-11-07)**
+- Live: `/health` on Render reports the commit with no database access, and the Vercel site reaches it.
+- API imports use about 74 MB, against a 150 MB test ceiling.
+- API↔Neon: about 95 ms per query, about 580 ms for a new connection.
+- Models chosen: gpt-oss-120b for text, Claude Haiku 4.5 for images (D2).
 
 **Tests**
 - Missing required config fails at startup.
