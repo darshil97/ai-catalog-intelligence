@@ -77,8 +77,3 @@ def get_api_config() -> dict[str, Any]:
 def get_database_config() -> dict[str, Any]:
     """Return database settings. Keys: url, direct_url, connect_timeout_seconds."""
     return dict(get_config()["database"])
-
-
-def get_diagnostics_config() -> dict[str, Any]:
-    """Return temporary diagnostics settings. Keys: token, latency_samples."""
-    return dict(get_config()["diagnostics"])

@@ -51,7 +51,7 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 **Rationale:** Worker and database share a region, so the chatty processing path is fast. Singapore is close to both Sydney and India.
 
 **Consequences:**
-- API↔Neon crosses regions (roughly 95 ms by estimate, to be measured in M0A), so endpoints must stay low on queries.
+- API↔Neon crosses regions: about 95 ms per query and about 580 ms per new connection, measured in M0A. Endpoints must stay low on queries and reuse connections.
 - India↔Sydney adds latency to uploads and downloads. Small thumbnails and POC limits reduce the impact.
 - Sydney's EC2 price is higher than Mumbai's.
 
@@ -462,7 +462,7 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 
 **Status:** Approved
 
-**Decision:** Create the Render service manually in the dashboard, with no `render.yaml`. Settings are recorded in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#render-service-created-manually).
+**Decision:** Create the Render service manually in the dashboard, with no `render.yaml`. Settings are recorded in [DEPLOYMENT.md](DEPLOYMENT.md#render).
 
 **Context:** Requested by the owner. There's one service, so a Blueprint adds little. D5's behavior is unchanged.
 
