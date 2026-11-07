@@ -462,7 +462,7 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 
 **Status:** Approved
 
-**Decision:** Create the Render service manually in the dashboard, with no `render.yaml`. Settings are recorded in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#render-service-created-manually).
+**Decision:** Create the Render service manually in the dashboard, with no `render.yaml`. Settings are recorded in [DEPLOYMENT.md](DEPLOYMENT.md#render).
 
 **Context:** Requested by the owner. There's one service, so a Blueprint adds little. D5's behavior is unchanged.
 

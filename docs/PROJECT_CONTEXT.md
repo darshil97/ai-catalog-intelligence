@@ -5,12 +5,12 @@
 | | |
 |---|---|
 | **Current status** | **M0A Foundation in progress.** Everything below describes the planned system unless listed as implemented here. |
-| **Implemented so far** | Project documentation. On branch `m0a-foundation`: backend skeleton (config, logging, request IDs, `/health`, temporary latency endpoint, Alembic baseline, placeholder worker), frontend shell, CI, conda environment. Not yet deployed. |
+| **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, temporary latency endpoint, Alembic baseline, placeholder worker), frontend shell, CI, conda environment. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
 | **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default) and `dev`. Baseline migration applied to `dev` (`vector` 0.8.6), and not yet to `production`. |
-| **Next steps** | Finish M0A: deploy to Render and Vercel, measure latency, remove the latency endpoint, and complete the model review. Then M0B. |
+| **Next steps** | Finish M0A: measure API↔Neon latency, then remove the latency endpoint. Then M0B. |
 | **Last updated** | 2026-11-07 |
 
-Related documents: [Implementation plan](IMPLEMENTATION_PLAN.md) · [Database schema](DATABASE_SCHEMA.md) · [Decisions](DECISIONS.md) · [Glossary](GLOSSARY.md)
+Related documents: [Implementation plan](IMPLEMENTATION_PLAN.md) · [Database schema](DATABASE_SCHEMA.md) · [Decisions](DECISIONS.md) · [Deployment](DEPLOYMENT.md) · [Glossary](GLOSSARY.md)
 
 ---
 
@@ -374,27 +374,7 @@ Google-only at launch. Roles are `user` and `admin`, from the token's `role` cla
 
 A local-mode worker refuses to start if its database host is the production one.
 
-**Local backend setup** (from `backend/`). `uv` installs the exact locked versions into the conda env. `--inexact` stops it removing conda's own packages.
-
-```bash
-conda env create -f environment.yml
-conda activate ai-catalog
-UV_PROJECT_ENVIRONMENT="$CONDA_PREFIX" uv sync --frozen --inexact --extra api --extra migrate
-```
-
-### Render service (created manually)
-
-| Setting | Value |
-|---|---|
-| Type, plan, region | Web Service, Free, Singapore |
-| Branch | `main` |
-| Root directory | `backend` |
-| Runtime | Python |
-| Build command | `pip install uv && uv sync --frozen --no-dev --extra api` |
-| Start command | `.venv/bin/python server.py` |
-| Health check path | `/health` |
-| Auto-deploy | After CI Checks Pass |
-| Environment variables | `PYTHON_VERSION=3.12.7`, `APP_ENV=production`, `API_HOST=0.0.0.0`, `CORS_ORIGINS` (Vercel URL), `DATABASE_URL` (`production` pooled string), and temporarily `DIAGNOSTICS_TOKEN` |
+Setup commands, service settings and environment variables are in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### AWS resources in Sydney (`ap-southeast-2`)
 
@@ -516,7 +496,8 @@ The architecture assumes:
 |---|---|---|
 | Before M0A | Create the Neon project in Sydney with Better Auth enabled | Done |
 | M0A | Confirm how Claude accesses Neon | Done: Neon MCP, with admin access |
-| M0A | Connect the repo to Render and Vercel, and add the UptimeRobot monitor | Pending |
+| M0A | Connect the repo to Render and Vercel | Done |
+| M0A | Add the UptimeRobot monitor | To confirm |
 | M0A | Add the Bedrock key to `backend/.env` | Done |
 | M0A | Choose LLM models (D2) | Done: gpt-oss-120b, Claude Haiku 4.5 |
 | Before opening sign-ups | Create a Google OAuth client and publish the consent screen | Pending |
