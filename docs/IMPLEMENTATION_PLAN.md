@@ -9,7 +9,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | Module | Name | Depends on | Status |
 |---|---|---|---|
 | M0A | Foundation | — | Completed |
-| M0B | Processing platform | M0A | Not Started |
+| M0B | Processing platform | M0A | In Progress (B1 built, under review) |
 | M1 | Accounts, suppliers and batches | M0A | Not Started |
 | M2 | File ingestion and storage | M0B, M1 | Not Started |
 | M3 | Spreadsheet extraction | M2 | Not Started |
@@ -66,12 +66,16 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 
 ## M0B Processing platform
 
+**Stages:** B1 queue and worker (local, no AWS), B2 EC2 lifecycle, B3 safe deployment. Each is reviewed before the next begins.
+
+**Approved changes from the original plan:** S3 and Bedrock permissions wait for M2 and M4/M7. Deployment jobs go in `ci.yml`, with no separate `deploy.yml`. Queue tables have no foreign key to users until M1. Temporary test-run endpoints use an admin token, and are removed in M1.
+
 **Scope**
 - Job queue tables, claiming, leases, heartbeat, retries and reaper.
 - Pipeline runs and stages.
 - Worker loop, graceful stop, idle shutdown, `WorkerController` and `PowerController` with `noop` implementations.
 - CloudFormation stack, IAM identities, EC2 setup, systemd units, watchdog, AWS Budgets.
-- `deploy.yml`, including migrations and the safe worker deploy.
+- Deployment jobs in `ci.yml`, including migrations and the safe worker deploy.
 - A no-op job, and the global EC2 hour cap.
 - Verify cost figures in the AWS calculator.
 

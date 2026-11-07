@@ -75,5 +75,59 @@ def get_api_config() -> dict[str, Any]:
 
 
 def get_database_config() -> dict[str, Any]:
-    """Return database settings. Keys: url, direct_url, connect_timeout_seconds."""
+    """Return database settings.
+
+    Keys: url, direct_url, connect_timeout_seconds, pool_min_size, pool_max_size,
+    pool_max_idle_seconds.
+    """
     return dict(get_config()["database"])
+
+
+def get_processing_config() -> dict[str, bool]:
+    """Return the emergency stop setting. Keys: enabled (bool)."""
+    return {"enabled": str(get_config()["processing"]["enabled"]).strip().lower() == "true"}
+
+
+def get_admin_config() -> dict[str, str]:
+    """Return temporary admin settings. Keys: token."""
+    return dict(get_config()["admin"])
+
+
+def get_compute_config() -> dict[str, str]:
+    """Return compute settings. Keys: worker_controller."""
+    return dict(get_config()["compute"])
+
+
+def get_queue_config() -> dict[str, int]:
+    """Return queue settings.
+
+    Keys: lease_seconds, max_attempts, backoff_base_seconds, backoff_max_seconds.
+    """
+    return dict(get_config()["queue"])
+
+
+def get_worker_config() -> dict[str, Any]:
+    """Return worker settings.
+
+    Keys: power_controller, code_sha, ec2_instance_id, heartbeat_file, heartbeat_seconds,
+    poll_busy_seconds, poll_idle_seconds, busy_window_seconds, idle_timeout_seconds,
+    stop_grace_seconds, reaper_interval_seconds, production_db_endpoint.
+    """
+    return dict(get_config()["worker"])
+
+
+def get_pipeline_config(name: str) -> list[dict[str, Any]]:
+    """Return a pipeline's stages, each with keys: stage, job_type.
+
+    Raises:
+        ValueError: if the pipeline doesn't exist, naming the ones that do.
+    """
+    pipelines = get_config()["pipelines"]
+    if name not in pipelines:
+        raise ValueError(f"Unknown pipeline: {name!r}. Available: {', '.join(sorted(pipelines))}")
+    return [dict(stage) for stage in pipelines[name]]
+
+
+def get_test_run_config() -> dict[str, int]:
+    """Return temporary test-run bounds. Keys: max_chunks, max_sleep_seconds."""
+    return dict(get_config()["test_runs"])

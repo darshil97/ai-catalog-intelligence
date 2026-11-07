@@ -1,6 +1,6 @@
 # Database Schema
 
-**Status: planned. No tables exist yet.** This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
+**Status: planned, except the job queue tables** (`pipeline_runs`, `pipeline_stage_runs`, `jobs`, `processing_errors`, `worker_control`, `worker_instances`, `worker_sessions`), which migration `0002` defines. It hasn't been applied to any Neon branch yet. This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
 PostgreSQL on Neon (Sydney), with the `pgvector` extension.
 
@@ -348,8 +348,9 @@ Append-only audit trail: `id`, `actor_user_id` FK, `entity_type`, `entity_id`, `
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID PK | |
-| `batch_id` | UUID FK | |
-| `owner_user_id` | TEXT FK | |
+| `pipeline` | TEXT NOT NULL | Pipeline name from config |
+| `batch_id` | UUID, nullable | Foreign key added in M1 |
+| `owner_user_id` | TEXT NOT NULL | Foreign key added in M1 |
 | `status` | TEXT NOT NULL | `queued`, `running`, `succeeded`, `failed`, `cancelled` |
 | `products_found`, `products_kept`, `products_discarded` | INTEGER | |
 | `files_found`, `files_kept`, `files_discarded` | INTEGER | |
@@ -361,9 +362,11 @@ Append-only audit trail: `id`, `actor_user_id` FK, `entity_type`, `entity_id`, `
 
 ### `pipeline_stage_runs`
 
-`id`, `pipeline_run_id` FK, `stage` TEXT, `status`, `total_chunks`, `completed_chunks`, `failed_chunks`, `started_at`, `finished_at`.
+`id`, `pipeline_run_id` FK, `stage` TEXT, `position` INTEGER, `job_type`, `payload` JSONB, `status`, `total_chunks`, `completed_chunks`, `failed_chunks`, `started_at`, `finished_at`.
 
-**Constraint:** `UNIQUE(pipeline_run_id, stage)`.
+`position`, `job_type` and `payload` say which stage comes next, and which job starts it.
+
+**Constraints:** `UNIQUE(pipeline_run_id, stage)`, `UNIQUE(pipeline_run_id, position)`.
 
 The transaction completing a stage's last chunk also enqueues the next stage.
 
@@ -430,7 +433,7 @@ A single row, enforced with `id INTEGER PRIMARY KEY CHECK (id = 1)`.
 
 | Column | Type | Notes |
 |---|---|---|
-| `state` | TEXT NOT NULL | `stopped`, `starting`, `running`, `shutting_down`, `unavailable` |
+| `state` | TEXT NOT NULL | `stopped`, `starting`, `running`, `paused`, `shutting_down`, `unavailable` |
 | `last_start_requested_at` | TIMESTAMPTZ | Cooldown for start attempts |
 | `min_contract`, `max_contract` | INTEGER | Published by the worker |
 | `pause_reason` | TEXT | `deploy`, or null |

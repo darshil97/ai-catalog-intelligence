@@ -53,16 +53,17 @@ def test_api_loads_without_heavy_packages_and_within_memory_ceiling() -> None:
     assert peak_mb < API_IMPORT_CEILING_MB, f"API import used {peak_mb:.0f} MB"
 
 
-def test_worker_placeholder_runs() -> None:
+def test_api_does_not_load_job_handlers() -> None:
+    # Handlers will pull in heavy packages, and only the worker may load them.
     result = _run(
         """
-        import worker
+        import app.api.main
 
-        worker.main()
+        assert "app.jobs.handlers" not in sys.modules
+        assert "app.worker.loop" not in sys.modules
         """
     )
     assert result.returncode == 0, result.stderr
-    assert "Worker placeholder" in result.stdout
 
 
 def test_worker_does_not_need_web_packages() -> None:
@@ -73,6 +74,25 @@ def test_worker_does_not_need_web_packages() -> None:
 
         assert "fastapi" not in sys.modules
         assert "starlette" not in sys.modules
+        assert "noop" in __import__("app.jobs.base", fromlist=["x"]).get_registered_handler_names()
         """
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_local_worker_refuses_the_production_database() -> None:
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "worker.py"],
+        cwd=BACKEND,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        env={
+            "PATH": "/usr/bin",
+            "APP_ENV": "local",
+            "DATABASE_URL": "postgresql://u:p@<PROD_DB_ENDPOINT>-pooler.example/db",
+        },
+    )
+    assert result.returncode == 2
+    assert "Refusing to start" in result.stdout
