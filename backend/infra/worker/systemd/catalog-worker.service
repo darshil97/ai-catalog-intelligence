@@ -25,7 +25,9 @@ MemoryMax=3G
 # The worker parses files uploaded by the public, so it gets as little access as possible.
 NoNewPrivileges=true
 ProtectSystem=strict
-ProtectHome=true
+# An empty /home rather than a hidden one: Postgres's client looks for an optional certificate
+# under the home directory, and a missing file is fine where an unreadable one is an error.
+ProtectHome=tmpfs
 PrivateTmp=true
 PrivateDevices=true
 ProtectKernelTunables=true
