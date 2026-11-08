@@ -53,6 +53,7 @@ queue:
   # Must stay below worker.idle_timeout_seconds, so a retry can't strand itself.
   backoff_max_seconds: 120
 
+# The worker runs on EC2, and is deployed automatically after each merge to main.
 worker:
   power_controller: ${WORKER_POWER_CONTROLLER:-noop}
   code_sha: ${WORKER_CODE_SHA:-unknown}

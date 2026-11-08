@@ -7,7 +7,7 @@
 | **Current status** | **M0A complete, M0B in progress.** Everything below describes the planned system unless listed as implemented here. |
 | **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline, placeholder worker), frontend shell, CI, conda environment. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
 | **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0002` are applied to `production`, `dev` and `test`. |
-| **In progress** | **M0B Processing platform.** B1 (queue and worker) and B2 (EC2 lifecycle) are done and verified on AWS. B3 (automatic worker deploys) is next, and its approach is awaiting the owner's decision (D26). |
+| **In progress** | **M0B Processing platform.** B1, B2 and B3 work on AWS: merges to `main` migrate, deploy the worker and then the API automatically. Two acceptance checks remain: a deploy during a running job, and a rollback. |
 | **Last updated** | 2026-11-07 |
 
 Related documents: [Implementation plan](IMPLEMENTATION_PLAN.md) · [Database schema](DATABASE_SCHEMA.md) · [Decisions](DECISIONS.md) · [Deployment](DEPLOYMENT.md) · [Glossary](GLOSSARY.md)
