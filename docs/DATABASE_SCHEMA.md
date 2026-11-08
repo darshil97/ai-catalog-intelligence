@@ -2,7 +2,7 @@
 
 **Status: planned, except these tables:**
 - **Job queue** (`pipeline_runs`, `pipeline_stage_runs`, `jobs`, `processing_errors`, `worker_control`, `worker_instances`, `worker_sessions`): migration `0002`, applied to the Neon `production`, `dev` and `test` branches.
-- **Accounts and catalog structure** (`user_profiles`, `user_limits`, `usage_ledger`, `suppliers`, `batches`, plus owner foreign keys on `pipeline_runs` and `jobs`): migration `0003` (M1), applied to `test` only so far. It refuses to run while queue rows exist whose owners have no profile.
+- **Accounts and catalog structure** (`user_profiles`, `user_limits`, `usage_ledger`, `suppliers`, `batches`, plus owner foreign keys on `pipeline_runs` and `jobs`): migration `0003` (M1), applied to `production` and `test`, not yet `dev`. It refuses to run while queue rows exist whose owners have no profile.
 
 This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 

@@ -114,7 +114,7 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 
 ## M1 Accounts, suppliers and batches
 
-**Status:** proposal approved by the owner on 2026-11-08. **Code implemented on 2026-11-08 and awaiting the owner's review.** Not yet merged, migrated on `production` or `dev`, or accepted live. See [Implementation notes](#m1-implementation-notes).
+**Status:** proposal approved by the owner on 2026-11-08. **Merged and deployed on 2026-11-08** (migration `0003` applied to `production` by CI). Live acceptance pending, and `dev` isn't migrated yet. See [Implementation notes](#m1-implementation-notes).
 
 **Approved additions to the scope below:**
 - Migration `0003`: `user_profiles`, `user_limits`, `usage_ledger`, `suppliers`, `batches`. Adds foreign keys from `pipeline_runs.owner_user_id` and `jobs.owner_user_id` to `user_profiles`. Expand-only.
@@ -177,6 +177,8 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 5. D27 approved: email-and-password sign-in turned off (and sign-up disabled) on `production` and `dev`.
 
 Preview deployments use other URLs, which aren't trusted, so sign-in works only on the production URL.
+
+**Fixed after the first deploy:** the frontend sent Better Auth's opaque session token instead of the JWT, so the API answered 401 (`malformed`) and sign-in looped back to the sign-in button. The proxy's cached `get-session` response carries no `set-auth-jwt` header. The frontend now fetches the JWT from `/token`.
 
 **After merging:** sign in once, then set your role to `admin` in Neon Auth (for example `UPDATE neon_auth."user" SET role = 'admin' WHERE email = '…'`) to keep test runs. Then run the live acceptance above.
 
