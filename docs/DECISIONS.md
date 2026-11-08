@@ -33,7 +33,7 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 | [D23](#d23-render-setup) | Create the Render service manually | Approved |
 | [D24](#d24-langchain-for-llm-calls) | LangChain for all LLM calls | Approved |
 | [D25](#d25-langgraph-only-if-required) | LangGraph only if required | Approved |
-| [D26](#d26-github-oidc-is-blocked) | GitHub OIDC is blocked by organization policy | Proposed: replacement undecided |
+| [D26](#d26-github-oidc-is-blocked) | GitHub OIDC is blocked: deploy with a narrow IAM user key | Approved |
 
 ---
 
@@ -515,7 +515,7 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 
 ## D26: GitHub OIDC is blocked
 
-**Status:** Proposed: the replacement needs the owner's decision in stage B3
+**Status:** Approved: IAM user key, chosen by the owner on 2026-11-08
 
 **Finding (2026-11-07):** the AWS organization's service control policy explicitly denies `iam:CreateOpenIDConnectProvider` and `iam:ListOpenIDConnectProviders`. It can't be changed from this account, and it won't be worked around. EC2, CloudFormation, S3, Systems Manager and IAM users and roles are all allowed in Sydney.
 
@@ -525,5 +525,9 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 - Ask the organization's administrator to allow it, or whether a provider already exists. This keeps the original design.
 - The worker updates itself: GitHub records the wanted commit in the database, and the worker applies it at a safe moment. No AWS access from GitHub at all.
 - A narrowly scoped IAM user with keys in GitHub secrets, which D17 set out to avoid.
+
+**Also affected:** Render's AWS OIDC integration needs the same provider, so the API uses a narrowly scoped access key for IAM user `catalog-api`.
+
+**Recommendation:** an IAM user whose key is stored in a GitHub environment limited to `main`, can only start the worker and run one deploy document, and is rotated every 90 days.
 
 **Consequences:** D17's deployment path changes once this is decided. Stage B2 isn't affected.

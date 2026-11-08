@@ -9,7 +9,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | Module | Name | Depends on | Status |
 |---|---|---|---|
 | M0A | Foundation | — | Completed |
-| M0B | Processing platform | M0A | In Progress (B1 merged, B2 in review) |
+| M0B | Processing platform | M0A | In Progress (B1 and B2 done, B3 next) |
 | M1 | Accounts, suppliers and batches | M0A | Not Started |
 | M2 | File ingestion and storage | M0B, M1 | Not Started |
 | M3 | Spreadsheet extraction | M2 | Not Started |
@@ -69,6 +69,12 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 **Stages:** B1 queue and worker (local, no AWS), B2 EC2 lifecycle, B3 safe deployment. Each is reviewed before the next begins.
 
 **Approved changes from the original plan:** S3 and Bedrock permissions wait for M2 and M4/M7. Deployment jobs go in `ci.yml`, with no separate `deploy.yml`. Queue tables have no foreign key to users until M1. Temporary test-run endpoints use an admin token, and are removed in M1.
+
+**B2 results (2026-11-08)**
+- First boot: setup finished, but the worker couldn't connect, because hiding `/home` blocked Postgres's optional certificate check. With no heartbeat, the watchdog powered the instance off within 20 minutes, as designed. Fixed with `ProtectHome=tmpfs`.
+- Idle cycle: the worker started on `ea12b11`, registered, and powered off after exactly 5 idle minutes.
+- Full cycle: a test run was submitted at 07:14:01 UTC, and the API asked AWS to start EC2 a second later. The worker claimed the first job 24 seconds after submission, finished all 3 jobs on their first attempt by 07:15:24, and powered off at 07:20:25.
+- Not yet exercised on EC2: force-stopping mid-job, and a deploy during a job. These are covered by tests and the local real-process run, and the deploy case comes with B3.
 
 **Scope**
 - Job queue tables, claiming, leases, heartbeat, retries and reaper.
