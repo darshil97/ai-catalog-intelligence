@@ -4,9 +4,9 @@
 
 | | |
 |---|---|
-| **Current status** | **M0A and M0B complete. M1 code implemented, awaiting the owner's review.** Everything below describes the planned system unless listed as implemented here. |
-| **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline), job queue and on-demand EC2 worker, CI and deploys. **M1 (in the working tree, not merged):** Neon Auth token checks, profiles, allowlist and waitlist, usage ledger and limits, supplier and batch CRUD with UI, admin-only test runs. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
-| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0002` are applied to `production`, `dev` and `test`. Migration `0003` (M1) is applied to `test` only. |
+| **Current status** | **M0A and M0B complete. M1 merged and deployed, awaiting live acceptance.** Everything below describes the planned system unless listed as implemented here. |
+| **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline), job queue and on-demand EC2 worker, CI and deploys. **M1 (merged and deployed 2026-11-08, live acceptance pending):** Neon Auth token checks, profiles, allowlist and waitlist, usage ledger and limits, supplier and batch CRUD with UI, admin-only test runs. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
+| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0002` are applied to `production`, `dev` and `test`. Migration `0003` (M1) is applied to `production` (by CI on 2026-11-08) and `test`, not yet `dev`. |
 | **Next module** | **M1 Accounts, suppliers and batches**: code done, waiting for review, the owner steps before merging, and live acceptance. See [M1 implementation notes](IMPLEMENTATION_PLAN.md#m1-implementation-notes). M2 follows. |
 | **Last updated** | 2026-11-08 |
 
@@ -312,7 +312,7 @@ Independent signals (SKU/model number, filename, OCR text, brand and attributes,
 ### Authentication
 
 1. The frontend signs users in with Google through Neon Auth. Its own `/api/auth` route proxies Neon Auth, so session cookies are first-party. Users and sessions live in the `neon_auth` schema.
-2. The frontend sends a 15-minute JWT as `Authorization: Bearer`.
+2. The frontend gets a 15-minute JWT from Neon Auth's `/token` endpoint (through `/api/auth/token`) and sends it as `Authorization: Bearer`. It doesn't use `session.token`: the app's auth route answers `get-session` from a cookie cache, which carries the opaque session token, not the JWT.
 3. The API verifies it locally using cached JWKS public keys (EdDSA signature, `iss` and `aud` both equal to the auth URL's origin, `exp`), with no database query. An unknown key ID refetches the keys, at most once every 30 seconds.
 4. On first use the API creates a `user_profiles` row keyed by `sub`, and decides whether the user is active or waitlisted. Active profiles are cached for 60 seconds.
 

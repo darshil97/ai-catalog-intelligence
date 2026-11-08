@@ -19,10 +19,49 @@ export class ApiError extends Error {
   }
 }
 
-/** Returns a short-lived Neon Auth JWT for the API, or null when signed out. */
-async function getToken(): Promise<string | null> {
-  const { data } = await authClient.getSession();
-  return data?.session?.token ?? null;
+// Refresh this long before expiry, so a token never expires between fetching and use.
+const TOKEN_REFRESH_MARGIN_SECONDS = 60;
+
+let cachedToken: { token: string; expiresAt: number } | null = null;
+
+/** Reads a JWT's expiry, in seconds since the epoch, or 0 if it can't be read. */
+function expiresAt(token: string): number {
+  try {
+    const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return Number((JSON.parse(atob(payload)) as { exp?: number }).exp) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Returns a short-lived Neon Auth JWT for the API, or null when signed out.
+ *
+ * Uses the /token endpoint rather than the session: this app's auth route answers
+ * get-session from a cookie cache, which carries the opaque session token, not the JWT.
+ */
+async function getToken(forceRefresh = false): Promise<string | null> {
+  const now = Date.now() / 1000;
+  if (!forceRefresh && cachedToken && cachedToken.expiresAt - TOKEN_REFRESH_MARGIN_SECONDS > now) {
+    return cachedToken.token;
+  }
+  cachedToken = null;
+  try {
+    const { data } = await authClient.token();
+    const token = data?.token;
+    // A JWT has three parts. Anything else would only earn a 401 from the API.
+    if (!token || token.split(".").length !== 3) return null;
+    cachedToken = { token, expiresAt: expiresAt(token) };
+    return token;
+  } catch {
+    // Signed out: the token endpoint refuses without a session.
+    return null;
+  }
+}
+
+/** Forgets the cached token, such as after signing out. */
+export function clearApiToken(): void {
+  cachedToken = null;
 }
 
 async function toApiError(response: Response): Promise<ApiError> {
@@ -65,7 +104,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response = await send(await getToken());
   if (response.status === 401) {
     // The cached token may have expired in flight. One fresh attempt, never a loop.
-    response = await send(await getToken());
+    response = await send(await getToken(true));
   }
   if (!response.ok) throw await toApiError(response);
   if (response.status === 204) return undefined as T;

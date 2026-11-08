@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
-import { ApiError, api } from "@/lib/api";
+import { ApiError, api, clearApiToken } from "@/lib/api";
 import { authClient } from "@/lib/auth/client";
 import type { Me } from "@/lib/types";
 
@@ -84,6 +84,7 @@ export function SignOutButton() {
   const router = useRouter();
   const signOut = useCallback(async () => {
     await authClient.signOut();
+    clearApiToken();
     router.push("/");
   }, [router]);
   return (
