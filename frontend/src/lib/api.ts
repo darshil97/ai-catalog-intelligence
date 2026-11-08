@@ -1,7 +1,5 @@
 "use client";
 
-import { authClient } from "@/lib/auth/client";
-
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 // Render's free tier can take about a minute to wake.
@@ -37,8 +35,10 @@ function expiresAt(token: string): number {
 /**
  * Returns a short-lived Neon Auth JWT for the API, or null when signed out.
  *
- * Uses the /token endpoint rather than the session: this app's auth route answers
- * get-session from a cookie cache, which carries the opaque session token, not the JWT.
+ * Calls this app's /api/auth/token route directly, not through the SDK. The app's auth route
+ * answers get-session from a cookie cache that carries the opaque session token, not the JWT,
+ * and the SDK treats any URL containing "/token" as get-session, answering authClient.token()
+ * from that same cache.
  */
 async function getToken(forceRefresh = false): Promise<string | null> {
   const now = Date.now() / 1000;
@@ -47,14 +47,18 @@ async function getToken(forceRefresh = false): Promise<string | null> {
   }
   cachedToken = null;
   try {
-    const { data } = await authClient.token();
-    const token = data?.token;
+    const response = await fetch("/api/auth/token", {
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    // 401 means signed out.
+    if (!response.ok) return null;
+    const token = ((await response.json()) as { token?: unknown }).token;
     // A JWT has three parts. Anything else would only earn a 401 from the API.
-    if (!token || token.split(".").length !== 3) return null;
+    if (typeof token !== "string" || token.split(".").length !== 3) return null;
     cachedToken = { token, expiresAt: expiresAt(token) };
     return token;
   } catch {
-    // Signed out: the token endpoint refuses without a session.
     return null;
   }
 }
