@@ -43,6 +43,74 @@ jobs:
       - name: Tests
         run: uv run pytest
 
+  # The jobs below run only on main. Render waits for all of them before deploying the API, so
+  # the order is always migrate, then worker, then API.
+  changes:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.paths.outputs.backend }}
+      worker: ${{ steps.paths.outputs.worker }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: paths
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          files=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+          backend=false
+          worker=false
+          if grep -q '^backend/' <<<"$files"; then backend=true; fi
+          # API-only and test changes don't need a worker deploy.
+          if grep '^backend/' <<<"$files" | grep -qvE '^backend/(app/api/|server\.py|tests/)'; then worker=true; fi
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          echo "worker=$worker" >> "$GITHUB_OUTPUT"
+          echo "backend=$backend worker=$worker"
+
+  migrate:
+    needs: [backend, changes]
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    concurrency: production-deploy
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen --python 3.12 --no-dev --extra api --extra migrate
+      - run: uv run --no-sync python infra/ci/production.py migrate
+
+  deploy-worker:
+    needs: [migrate, changes]
+    if: needs.changes.outputs.worker == 'true'
+    runs-on: ubuntu-latest
+    # Allows 20 minutes for a running job to finish, plus the deploy itself.
+    timeout-minutes: 45
+    environment: production
+    concurrency: production-deploy
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      WORKER_INSTANCE_ID: ${{ vars.WORKER_INSTANCE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen --python 3.12 --no-dev --extra api
+      - run: uv run --no-sync python infra/ci/production.py deploy-worker --sha "$GITHUB_SHA"
+
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 10

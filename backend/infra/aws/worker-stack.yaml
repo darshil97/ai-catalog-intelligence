@@ -155,6 +155,73 @@ Resources:
                 Action: ec2:DescribeInstances
                 Resource: "*"
 
+  # The only command GitHub can run on the instance. It accepts nothing but a full commit SHA,
+  # checks that commit is on main, and runs the deploy script from that commit.
+  DeployDocument:
+    Type: AWS::SSM::Document
+    Properties:
+      Name: catalog-worker-deploy
+      DocumentType: Command
+      UpdateMethod: NewVersion
+      Content:
+        schemaVersion: "2.2"
+        description: Deploy one commit from main to the AI Catalog worker.
+        parameters:
+          Sha:
+            type: String
+            description: Full 40-character commit SHA on main.
+            allowedPattern: "^[0-9a-f]{40}$"
+        mainSteps:
+          - action: aws:runShellScript
+            name: deploy
+            inputs:
+              timeoutSeconds: "900"
+              runCommand:
+                # Systems Manager runs these with sh, which may lack pipefail; nothing here pipes.
+                - set -eu
+                - SHA='{{ Sha }}'
+                - export HOME=/root GIT_SSH_COMMAND='ssh -i /root/.ssh/catalog_deploy -o IdentitiesOnly=yes'
+                - git -C /opt/catalog/app fetch -q origin main
+                - git -C /opt/catalog/app merge-base --is-ancestor "$SHA" origin/main
+                - git -C /opt/catalog/app show "$SHA:backend/infra/worker/deploy.sh" > /opt/catalog/deploy-next.sh
+                - bash /opt/catalog/deploy-next.sh "$SHA"
+
+  # Used by GitHub Actions to deploy. Create its access key in the console and store it as a
+  # GitHub environment secret.
+  DeployUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: catalog-github-deploy
+      Policies:
+        - PolicyName: deploy-worker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ec2:StartInstances
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${WorkerInstance}
+              - Effect: Allow
+                Action: ssm:SendCommand
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${WorkerInstance}
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:document/${DeployDocument}
+              - Effect: Allow
+                # These actions don't support limiting to one resource.
+                Action:
+                  - ec2:DescribeInstances
+                  - ssm:DescribeInstanceInformation
+                  - ssm:GetCommandInvocation
+                Resource: "*"
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/catalog/prod/ci/*
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub ssm.${AWS::Region}.amazonaws.com
+
 Outputs:
   InstanceId:
     Description: Set as WORKER_INSTANCE_ID on Render.
@@ -162,3 +229,6 @@ Outputs:
   ApiUserName:
     Description: Create an access key for this user in the console.
     Value: !Ref ApiUser
+  DeployUserName:
+    Description: Create an access key for this user, and store it in GitHub.
+    Value: !Ref DeployUser

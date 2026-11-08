@@ -12,7 +12,7 @@ How this project is deployed, what each service needs, and what to do when somet
 | Frontend | Vercel | https://ai-catalog-intelligence.vercel.app | `main`, `frontend/` |
 | Database and auth | Neon, Sydney | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`). Branches: `production`, `dev`, `test`. | Alembic migrations |
 | Monitoring | UptimeRobot | `GET /health` on the API, every 5 minutes | — |
-| Worker | EC2, Sydney | **Not created yet (M0B stage B2)** | `main`, `backend/` |
+| Worker | EC2, Sydney | `<WORKER_INSTANCE_ID>`, started on demand | `main`, `backend/`. Updated manually until B3. |
 
 ## Normal deployment
 
@@ -183,7 +183,7 @@ A new Neon branch starts with **the same role passwords as its parent**, so a pa
 
 ## Worker and AWS
 
-**Status:** files are written, and the stack hasn't been created yet.
+**Status:** stack `catalog-worker` created on 2026-11-08. Instance `<WORKER_INSTANCE_ID>`, normally stopped. API user `catalog-api` has one access key, used by Render.
 
 The template is [worker-stack.yaml](../backend/infra/aws/worker-stack.yaml). Region is always `ap-southeast-2`, because the account's policy denies other regions.
 
@@ -250,6 +250,42 @@ sudo cat /var/log/catalog-bootstrap.log
 
 Turn off termination protection on the instance first, or the delete fails. This stops the EBS charge.
 
-### Planned
+### Automatic worker deploys (B3)
 
-Worker deploys arrive in stage B3. GitHub OIDC can't be used, because the account's organization policy denies creating the provider (D26).
+On every push to `main` that changes `backend/`, `ci.yml` runs `migrate`, then `deploy-worker` if worker or shared code changed. They run in the GitHub environment `production`, one deploy at a time. Render waits for these checks before deploying the API.
+
+**`deploy-worker`, step by step:**
+1. Pauses the worker in the database, for at most 30 minutes.
+2. Starts EC2 if it's stopped.
+3. Waits until no job is running, for up to 20 minutes.
+4. Sends the `catalog-worker-deploy` command with the commit SHA.
+5. On the instance, `deploy.sh` checks the SHA is on `main`, updates, self-checks, restarts and confirms the new version is running. If anything fails, it rolls back.
+6. Unpauses the worker, which then stops EC2 itself after 5 idle minutes.
+
+GitHub uses IAM user `catalog-github-deploy`, whose key can only:
+- Start the worker instance.
+- Run that one document on it.
+- Read `/catalog/prod/ci/*`.
+
+**Known limit:** if several merges land quickly, GitHub may cancel a queued deploy in favour of the newest one. The latest commit still deploys.
+
+#### GitHub setup
+
+| Where | Name | Value |
+|---|---|---|
+| Environment `production`, secret | `AWS_ACCESS_KEY_ID` | Access key of `catalog-github-deploy` |
+| Environment `production`, secret | `AWS_SECRET_ACCESS_KEY` | Its secret |
+| Environment `production`, variable | `AWS_REGION` | `ap-southeast-2` |
+| Environment `production`, variable | `WORKER_INSTANCE_ID` | `<WORKER_INSTANCE_ID>` |
+
+Limit the environment's deployment branches to `main`, and rotate the key every 90 days.
+
+**Parameter:** `/catalog/prod/ci/database_url_direct` holds the `production` URL with pooling off. The deploy key can read it, so a leaked key would expose the production database. Add a migration-only database login before real users arrive.
+
+### Updating the worker by hand
+
+Only if the automatic deploy is broken. Start the instance, then run this as root through Session Manager:
+
+```bash
+cd /opt/catalog/app && GIT_SSH_COMMAND='ssh -i /root/.ssh/catalog_deploy -o IdentitiesOnly=yes' git fetch -q origin main && git checkout -q --detach origin/main && bash backend/infra/worker/install.sh
+```
