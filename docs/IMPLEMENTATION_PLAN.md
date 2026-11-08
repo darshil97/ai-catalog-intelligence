@@ -9,7 +9,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | Module | Name | Depends on | Status |
 |---|---|---|---|
 | M0A | Foundation | — | Completed |
-| M0B | Processing platform | M0A | In Progress (B3 working, 2 acceptance checks left) |
+| M0B | Processing platform | M0A | Completed |
 | M1 | Accounts, suppliers and batches | M0A | Not Started |
 | M2 | File ingestion and storage | M0B, M1 | Not Started |
 | M3 | Spreadsheet extraction | M2 | Not Started |
@@ -75,7 +75,9 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 - `deploy-worker` started EC2 at 10:20:54 UTC. The old worker booted paused and claimed nothing, and the deploy was confirmed at 10:21:28 with the new commit running.
 - Render switched the API to `65bd09e` at 10:22:30, after `deploy-worker` finished. This confirms "After CI Checks Pass" waits for the deploy jobs.
 - EC2 stopped itself at 10:26:33.
-- Not yet exercised: a deploy while a job is running, and a deliberately broken deploy rolling back.
+- Deploy during a running job (PR #7, `754ae8d`): the deploy paused the worker at 10:51:22, while a 10-minute job ran. The job succeeded on its first attempt at 10:55:05, then the worker updated at 10:56:27, and Render followed.
+- Broken deploy (PR #8, `a0c342f`, a deliberately invalid setting): the new worker never came up, `deploy.sh` rolled back to `754ae8d` at 12:31:04, the GitHub run failed, and Render stayed on `754ae8d`. Reverted in PR #9 (`213f61d`), which deployed normally.
+- Not exercised on EC2: five quick submissions causing one start. Covered by tests.
 
 **B2 results (2026-11-08)**
 - First boot: setup finished, but the worker couldn't connect, because hiding `/home` blocked Postgres's optional certificate check. With no heartbeat, the watchdog powered the instance off within 20 minutes, as designed. Fixed with `ProtectHome=tmpfs`.
@@ -111,6 +113,24 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 ---
 
 ## M1 Accounts, suppliers and batches
+
+**Status:** proposal approved by the owner on 2026-11-08. Implementation not started.
+
+**Approved additions to the scope below:**
+- Migration `0003`: `user_profiles`, `user_limits`, `usage_ledger`, `suppliers`, `batches`. Adds foreign keys from `pipeline_runs.owner_user_id` and `jobs.owner_user_id` to `user_profiles`. Expand-only.
+- The API verifies Neon Auth tokens locally: EdDSA signature via cached JWKS, issuer, audience, expiry, `banned` and `role`. It creates the profile on first use. There's no database query per check.
+- `ADMIN_TOKEN` is removed. Test runs stay available, but only to signed-in users with the `admin` role.
+- Neon Auth trusted domains for the Vercel URL and `localhost`. Neon's shared Google credentials are used until M7.
+- Render and Vercel get the Neon Auth settings, and `ADMIN_TOKEN` is removed from Render.
+
+**Owner decisions:**
+1. Delete the M0B test-run rows in production (`noop` runs with owners such as `system`) before adding the foreign keys. This is approved, but confirm with the owner right before running it.
+2. While `signups_enabled` is false, only allowlisted emails can use the app. Start with `owner@example.com`. Anyone else sees a waitlist message.
+3. Keep admin-only test runs.
+
+**Live acceptance:** the owner signs in with Google on Vercel and creates a supplier and a batch. A second Google account can't see them. A non-allowlisted account gets the waitlist message.
+
+**Edge cases to cover:** expired, wrongly signed, wrong-audience and rotated-key tokens (refetch once, rate-limited); a user banned mid-session; a changed email; the user cap reached; duplicate supplier names per owner; deleting a supplier that has batches (refused); Render cold starts; about one database query per request, since each costs about 95 ms.
 
 **Scope**
 - Neon Auth with Google sign-in in the frontend.

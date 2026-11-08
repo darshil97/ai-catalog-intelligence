@@ -4,10 +4,10 @@
 
 | | |
 |---|---|
-| **Current status** | **M0A complete, M0B in progress.** Everything below describes the planned system unless listed as implemented here. |
+| **Current status** | **M0A and M0B complete.** Everything below describes the planned system unless listed as implemented here. |
 | **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline, placeholder worker), frontend shell, CI, conda environment. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
 | **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0002` are applied to `production`, `dev` and `test`. |
-| **In progress** | **M0B Processing platform.** B1, B2 and B3 work on AWS: merges to `main` migrate, deploy the worker and then the API automatically. Two acceptance checks remain: a deploy during a running job, and a rollback. |
+| **Next module** | **M1 Accounts, suppliers and batches.** Proposal **approved** on 2026-11-08, and implementation not started. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md#m1-accounts-suppliers-and-batches) for the approved scope and decisions. |
 | **Last updated** | 2026-11-07 |
 
 Related documents: [Implementation plan](IMPLEMENTATION_PLAN.md) · [Database schema](DATABASE_SCHEMA.md) · [Decisions](DECISIONS.md) · [Deployment](DEPLOYMENT.md) · [Glossary](GLOSSARY.md)
@@ -528,5 +528,12 @@ At the start of every session, read this file and `GUIDELINES.md`, then continue
 Ask before any schema change or destructive action made directly on a Neon database.
 
 **Postgres:** never runs locally. All database work, including tests, uses Neon.
+
+**Session handoff:** live resources Claude can reach through tools:
+- **Neon:** project `<NEON_PROJECT_ID>`; branches `production` (`<NEON_PRODUCTION_BRANCH_ID>`), `dev` (`<NEON_DEV_BRANCH_ID>`) and `test` (`<NEON_TEST_BRANCH_ID>`).
+- **AWS:** account `<AWS_ACCOUNT_ID>`, stack `catalog-worker`, instance `<WORKER_INSTANCE_ID>`.
+- **Render:** `https://YOUR-SERVICE.onrender.com`.
+- **Vercel:** `https://ai-catalog-intelligence.vercel.app`.
+- **Local Python:** conda env `ai-catalog`. From a laptop, the full test suite on Neon `test` takes about 16 minutes, so run only the affected test files locally and let CI run everything.
 
 **Git:** Claude never runs `git add`, `git commit` or `git push`. Claude leaves changes in the working tree, and the owner reviews and performs those steps.
