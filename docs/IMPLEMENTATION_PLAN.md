@@ -9,7 +9,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | Module | Name | Depends on | Status |
 |---|---|---|---|
 | M0A | Foundation | — | Completed |
-| M0B | Processing platform | M0A | In Progress (B1 and B2 done, B3 next) |
+| M0B | Processing platform | M0A | In Progress (B3 working, 2 acceptance checks left) |
 | M1 | Accounts, suppliers and batches | M0A | Not Started |
 | M2 | File ingestion and storage | M0B, M1 | Not Started |
 | M3 | Spreadsheet extraction | M2 | Not Started |
@@ -69,6 +69,13 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 **Stages:** B1 queue and worker (local, no AWS), B2 EC2 lifecycle, B3 safe deployment. Each is reviewed before the next begins.
 
 **Approved changes from the original plan:** S3 and Bedrock permissions wait for M2 and M4/M7. Deployment jobs go in `ci.yml`, with no separate `deploy.yml`. Queue tables have no foreign key to users until M1. Temporary test-run endpoints use an admin token, and are removed in M1.
+
+**B3 results (2026-11-08)**, from the merge of PR #6 (`65bd09e`):
+- `migrate` ran against production through the GitHub key and Parameter Store, with nothing new to apply.
+- `deploy-worker` started EC2 at 10:20:54 UTC. The old worker booted paused and claimed nothing, and the deploy was confirmed at 10:21:28 with the new commit running.
+- Render switched the API to `65bd09e` at 10:22:30, after `deploy-worker` finished. This confirms "After CI Checks Pass" waits for the deploy jobs.
+- EC2 stopped itself at 10:26:33.
+- Not yet exercised: a deploy while a job is running, and a deliberately broken deploy rolling back.
 
 **B2 results (2026-11-08)**
 - First boot: setup finished, but the worker couldn't connect, because hiding `/home` blocked Postgres's optional certificate check. With no heartbeat, the watchdog powered the instance off within 20 minutes, as designed. Fixed with `ProtectHome=tmpfs`.
