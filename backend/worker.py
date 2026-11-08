@@ -50,6 +50,7 @@ def _build_worker() -> Worker:
         reaper_interval_seconds=float(config["reaper_interval_seconds"]),
         processing_enabled=get_processing_config()["enabled"],
         heartbeat_file=config["heartbeat_file"] or None,
+        max_job_seconds=float(config["max_job_seconds"]),
     )
     return Worker(settings, get_queue_settings(), get_power_controller(config["power_controller"]))
 

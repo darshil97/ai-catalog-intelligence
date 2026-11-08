@@ -8,13 +8,8 @@ import psycopg
 import psycopg_pool
 from fastapi import HTTPException
 
-from app.compute import get_worker_controller
-from app.config import (
-    get_admin_config,
-    get_compute_config,
-    get_pipeline_config,
-    get_processing_config,
-)
+from app.compute.starter import request_worker_start
+from app.config import get_admin_config, get_pipeline_config, get_processing_config
 from app.db import DatabaseNotConfiguredError, get_pool
 from app.jobs import queue
 from app.jobs.models import StageSpec
@@ -39,8 +34,6 @@ def submit_test_run(
     chunks: int, sleep_seconds: float, owner: str, fail: str | None
 ) -> dict[str, UUID]:
     """Queue a test run, then make sure a worker is available.
-
-    The job commits first, so a failed worker start can't lose it.
 
     Raises:
         HTTPException: 503 if processing is off or the database is down, or 409 if the owner
@@ -67,11 +60,8 @@ def submit_test_run(
         logger.error("Test run failed: error=%s", type(exc).__name__, exc_info=True)
         raise HTTPException(status_code=503, detail="Database unavailable") from exc
 
-    try:
-        get_worker_controller(get_compute_config()["worker_controller"]).ensure_running()
-    except Exception:  # noqa: BLE001
-        # The job is safely queued, and the next check will try starting the worker again.
-        logger.error("Worker start failed: run_id=%s", run_id, exc_info=True)
+    # The job is committed first, so a failed worker start can't lose it.
+    request_worker_start()
     return {"run_id": run_id}
 
 
@@ -89,6 +79,8 @@ def get_test_run(run_id: UUID) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="Database unavailable") from exc
     if status is None:
         raise HTTPException(status_code=404, detail="Not Found")
+    if status.run["finished_at"] is None:
+        request_worker_start()
     return {
         "run_id": status.run["id"],
         "status": status.run["status"],

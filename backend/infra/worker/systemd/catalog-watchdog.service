@@ -1,0 +1,6 @@
+[Unit]
+Description=Power off if the AI Catalog worker has stopped working
+
+[Service]
+Type=oneshot
+ExecStart=/opt/catalog/watchdog.sh

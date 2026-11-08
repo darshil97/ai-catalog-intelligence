@@ -6,14 +6,23 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+RUNNING = "running"
+STARTING = "starting"
+RETRY = "retry"
+UNAVAILABLE = "unavailable"
+
 
 class WorkerController(Protocol):
     """Makes sure a worker is running to pick up queued jobs."""
 
     name: str
 
-    def ensure_running(self) -> None:
-        """Start the worker if needed. Failing here must not lose queued work."""
+    def ensure_running(self) -> str:
+        """Start the worker if needed. Failing here must not lose queued work.
+
+        Returns:
+            RUNNING, STARTING, RETRY or UNAVAILABLE.
+        """
         ...
 
 

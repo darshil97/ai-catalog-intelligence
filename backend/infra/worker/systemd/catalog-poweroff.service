@@ -1,0 +1,6 @@
+[Unit]
+Description=Power off after the AI Catalog worker has finished
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl poweroff

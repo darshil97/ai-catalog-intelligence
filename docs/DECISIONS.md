@@ -24,7 +24,7 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 | [D14](#d14-separate-api-and-worker) | Separate API and worker | Approved |
 | [D15](#d15-postgresql-as-the-job-queue) | PostgreSQL as the job queue | Approved |
 | [D16](#d16-on-demand-ec2-worker) | On-demand EC2 worker | Approved |
-| [D17](#d17-worker-deployment) | Worker deploy via GitHub OIDC and SSM | Approved |
+| [D17](#d17-worker-deployment) | Worker deploy via GitHub OIDC and SSM | Approved, OIDC part blocked (D26) |
 | [D18](#d18-repository-layout) | `backend/`, `frontend/`, `docs/` | Approved |
 | [D19](#d19-attribute-provenance-model) | Append-only attribute provenance | Approved |
 | [D20](#d20-image-similarity-and-duplicates) | pHash + OpenCLIP, exact search | Approved |
@@ -33,6 +33,7 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 | [D23](#d23-render-setup) | Create the Render service manually | Approved |
 | [D24](#d24-langchain-for-llm-calls) | LangChain for all LLM calls | Approved |
 | [D25](#d25-langgraph-only-if-required) | LangGraph only if required | Approved |
+| [D26](#d26-github-oidc-is-blocked) | GitHub OIDC is blocked by organization policy | Proposed: replacement undecided |
 
 ---
 
@@ -359,7 +360,7 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 
 ## D17: Worker deployment
 
-**Status:** Approved
+**Status:** Approved, but its GitHub OIDC part is blocked (D26)
 
 **Decision:** GitHub Actions with OIDC starts EC2 if needed, then uses SSM with one custom document, accepting only a validated commit SHA. A Python virtual environment and Git checkout, not Docker.
 
@@ -509,3 +510,20 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 - A module proposing LangGraph must explain why plain code won't do, and get approval.
 - If used, it runs inside a job. The PostgreSQL queue stays responsible for claiming, retries and recovery.
 - The MVP exclusion of autonomous agents still stands.
+
+---
+
+## D26: GitHub OIDC is blocked
+
+**Status:** Proposed: the replacement needs the owner's decision in stage B3
+
+**Finding (2026-11-07):** the AWS organization's service control policy explicitly denies `iam:CreateOpenIDConnectProvider` and `iam:ListOpenIDConnectProviders`. It can't be changed from this account, and it won't be worked around. EC2, CloudFormation, S3, Systems Manager and IAM users and roles are all allowed in Sydney.
+
+**Context:** D17 planned for GitHub Actions to reach AWS through OIDC, to keep long-lived AWS keys out of GitHub.
+
+**Alternatives to decide between:**
+- Ask the organization's administrator to allow it, or whether a provider already exists. This keeps the original design.
+- The worker updates itself: GitHub records the wanted commit in the database, and the worker applies it at a safe moment. No AWS access from GitHub at all.
+- A narrowly scoped IAM user with keys in GitHub secrets, which D17 set out to avoid.
+
+**Consequences:** D17's deployment path changes once this is decided. Stage B2 isn't affected.

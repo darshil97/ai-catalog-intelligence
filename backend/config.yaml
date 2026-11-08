@@ -34,8 +34,17 @@ admin:
   token: ${ADMIN_TOKEN:-}
 
 compute:
-  # ec2 arrives in stage B2. noop assumes you started worker.py yourself.
+  # ec2 starts the instance. noop assumes you started worker.py yourself.
   worker_controller: ${WORKER_CONTROLLER:-noop}
+  instance_id: ${WORKER_INSTANCE_ID:-}
+  region: ${AWS_REGION:-ap-southeast-2}
+  # A heartbeat newer than this means a worker is alive, so AWS isn't called.
+  heartbeat_fresh_seconds: 90
+  start_cooldown_seconds: 60
+  start_retry_seconds: 65
+  start_retry_max_attempts: 20
+  # New work waits once this many EC2 hours are used in a calendar month.
+  max_ec2_hours_per_month: 30
 
 queue:
   lease_seconds: 120
@@ -49,6 +58,7 @@ worker:
   code_sha: ${WORKER_CODE_SHA:-unknown}
   ec2_instance_id: ${WORKER_INSTANCE_ID:-}
   heartbeat_file: ${WORKER_HEARTBEAT_FILE:-}
+  power_request_file: ${WORKER_POWER_REQUEST_FILE:-/run/catalog-worker/poweroff}
   heartbeat_seconds: 30
   poll_busy_seconds: 5
   poll_idle_seconds: 15
@@ -56,6 +66,8 @@ worker:
   idle_timeout_seconds: 300
   stop_grace_seconds: 60
   reaper_interval_seconds: 60
+  # A job running longer than this is treated as stuck, and the process exits.
+  max_job_seconds: 1800
   # A local worker refuses to start against this database endpoint. Not a secret.
   production_db_endpoint: <PROD_DB_ENDPOINT>
 

@@ -6,8 +6,8 @@
 |---|---|
 | **Current status** | **M0A complete, M0B in progress.** Everything below describes the planned system unless listed as implemented here. |
 | **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline, placeholder worker), frontend shell, CI, conda environment. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
-| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0002` are applied to `dev` and `test`, and none yet to `production`. |
-| **In progress** | **M0B Processing platform, stage B1** (queue and worker) is built locally and uncommitted, awaiting the owner's review. Then B2 (EC2) and B3 (deployment). |
+| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0002` are applied to `production`, `dev` and `test`. |
+| **In progress** | **M0B Processing platform.** B1 (queue and worker) is merged. B2 (EC2) code is written and uncommitted, with no AWS resources created. Then B3 (deployment). |
 | **Last updated** | 2026-11-07 |
 
 Related documents: [Implementation plan](IMPLEMENTATION_PLAN.md) · [Database schema](DATABASE_SCHEMA.md) · [Decisions](DECISIONS.md) · [Deployment](DEPLOYMENT.md) · [Glossary](GLOSSARY.md)
@@ -301,9 +301,9 @@ Retries work without an always-on scheduler: an in-process retry task on the API
 ```
 
 - **Shutdown race:** a job committed just after the check isn't lost. The API sees `shutting_down` or `stopping` and starts the instance once it reaches `stopped`.
-- **Shutdown method:** narrow sudo rule for OS poweroff, so the instance role needs no EC2 permissions.
+- **Shutdown method:** the worker creates a file that a root-owned systemd unit watches, then that unit powers off. The worker keeps no privileges, and the instance role needs no EC2 permissions.
 - **Backoff limit:** retry backoff stays below the idle timeout, so a retry can't strand itself on a stopped instance.
-- **Cost protection:** systemd restart limits, `WatchdogSec` and `MemoryMax`; an independent watchdog timer powers off if the worker is down or stale for over 15 minutes; AWS Budgets alerts.
+- **Cost protection:** a 30-minute job limit, `MemoryMax`, and an independent watchdog timer that powers off if the heartbeat is stale for 15 minutes or after 8 hours of uptime. See [DEPLOYMENT.md](DEPLOYMENT.md#how-the-worker-stops).
 
 ### Image association
 
@@ -390,7 +390,7 @@ Setup commands, service settings and environment variables are in [DEPLOYMENT.md
 | Network | Default VPC with public IP, no inbound rules, no NAT, no Elastic IP |
 | S3 | Dev and prod buckets, public access blocked, CORS for the frontend, lifecycle rules, free gateway endpoint |
 | Parameter Store | SecureStrings, standard tier |
-| CloudWatch Logs | Short retention, worker only |
+| Worker logs | systemd journal on the instance, read through Session Manager. CloudWatch Logs can be added later if needed. |
 | AWS Budgets | Existing $20 budget set by the owner |
 
 Install CPU-only torch so it fits on 20 GB, and keep model weights on the EBS volume. The worker runs as a non-root user with systemd hardening, because it parses files uploaded by the public.
@@ -399,9 +399,9 @@ Install CPU-only torch so it fits on 20 GB, and keep model weights on the EBS vo
 
 | Identity | Permissions |
 |---|---|
-| `catalog-api` IAM user | `ec2:StartInstances` on the one instance, `ec2:DescribeInstances`, S3 Get/Put on data prefixes for presigning. Stored in Render's environment, with documented rotation. |
-| `catalog-worker` instance role | S3 read/write on bucket prefixes, `ssm:GetParameter` on `/catalog/prod/*`, `kms:Decrypt` for that key, `bedrock:InvokeModel*` on approved models, `AmazonSSMManagedInstanceCore`, CloudWatch log writes. No EC2 permissions. |
-| `catalog-github-deploy` OIDC role (repo and `main` only) | Start and describe the one instance, `ssm:SendCommand` limited to that instance and one custom document, read the migration URL parameter. |
+| `catalog-api` IAM user | `ec2:StartInstances` on the one instance, `ec2:DescribeInstances`. S3 presigning arrives in M2. Stored in Render's environment, with documented rotation. |
+| `catalog-worker` instance role | `ssm:GetParameter` on `/catalog/prod/worker/*`, `kms:Decrypt` through Parameter Store, `AmazonSSMManagedInstanceCore`. S3 arrives in M2 and Bedrock in M4 or M7. No EC2 permissions. |
+| GitHub deployment access | **Undecided.** OIDC is blocked by organization policy (D26). |
 
 ### CI/CD
 

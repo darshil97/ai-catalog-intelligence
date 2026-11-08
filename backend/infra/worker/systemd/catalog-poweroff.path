@@ -1,0 +1,8 @@
+[Unit]
+Description=Watch for the AI Catalog worker asking to power off
+
+[Path]
+PathExists=/run/catalog-worker/poweroff
+
+[Install]
+WantedBy=multi-user.target

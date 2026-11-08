@@ -1,8 +1,10 @@
 """Covers the temporary test-run endpoints. The first group needs no database."""
 
+import os
 from unittest.mock import MagicMock
 from uuid import UUID
 
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
@@ -93,15 +95,15 @@ def test_worker_start_failure_keeps_the_job_queued(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # A failed EC2 start must never lose work: the job is committed first.
-    controller = MagicMock()
-    controller.ensure_running.side_effect = RuntimeError("no capacity")
     monkeypatch.setattr(
-        "app.api.services.test_runs.get_worker_controller", lambda _name: controller
+        "app.api.services.test_runs.request_worker_start",
+        MagicMock(side_effect=RuntimeError("no capacity")),
     )
-    response = client.post(URL, json={}, headers=HEADERS)
-    assert response.status_code == 201
-    status = client.get(f"{URL}/{response.json()['run_id']}", headers=HEADERS)
-    assert status.json()["job_counts"] == {"pending": 1}
+    with pytest.raises(RuntimeError):
+        client.post(URL, json={}, headers=HEADERS)
+    with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as conn:
+        row = conn.execute("SELECT count(*) FROM jobs WHERE status = 'pending'").fetchone()
+    assert row == (1,)
 
 
 @pytest.mark.usefixtures("admin_token")
