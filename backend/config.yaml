@@ -60,8 +60,7 @@ worker:
   ec2_instance_id: ${WORKER_INSTANCE_ID:-}
   heartbeat_file: ${WORKER_HEARTBEAT_FILE:-}
   power_request_file: ${WORKER_POWER_REQUEST_FILE:-/run/catalog-worker/poweroff}
-  # DELIBERATELY BROKEN for the M0B rollback check. Revert this commit afterwards.
-  heartbeat_seconds: not-a-number
+  heartbeat_seconds: 30
   poll_busy_seconds: 5
   poll_idle_seconds: 15
   busy_window_seconds: 60
