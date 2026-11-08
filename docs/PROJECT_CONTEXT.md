@@ -4,10 +4,10 @@
 
 | | |
 |---|---|
-| **Current status** | **M0A and M0B complete. M1 merged and deployed, awaiting live acceptance.** Everything below describes the planned system unless listed as implemented here. |
-| **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline), job queue and on-demand EC2 worker, CI and deploys. **M1 (merged and deployed 2026-11-08, live acceptance pending):** Neon Auth token checks, profiles, allowlist and waitlist, usage ledger and limits, supplier and batch CRUD with UI, admin-only test runs. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
-| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0002` are applied to `production`, `dev` and `test`. Migration `0003` (M1) is applied to `production` (by CI on 2026-11-08) and `test`, not yet `dev`. |
-| **Next module** | **M1 Accounts, suppliers and batches**: code done, waiting for review, the owner steps before merging, and live acceptance. See [M1 implementation notes](IMPLEMENTATION_PLAN.md#m1-implementation-notes). M2 follows. |
+| **Current status** | **M0A, M0B and M1 complete.** Everything below describes the planned system unless listed as implemented here. |
+| **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline), job queue and on-demand EC2 worker, CI and deploys. **M1:** Neon Auth token checks, profiles, allowlist and waitlist, usage ledger and limits, supplier and batch CRUD with UI, admin-only test runs. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
+| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0003` are applied to `production`, `dev` and `test`. |
+| **Next module** | **M2 File ingestion and storage**: needs a proposal and approval. Open from M1: admin-only test runs are unreachable, because Neon Auth tokens never carry the admin role (see [M1 notes](IMPLEMENTATION_PLAN.md#m1-implementation-notes)). |
 | **Last updated** | 2026-11-08 |
 
 Related documents: [Implementation plan](IMPLEMENTATION_PLAN.md) · [Database schema](DATABASE_SCHEMA.md) · [Decisions](DECISIONS.md) · [Deployment](DEPLOYMENT.md) · [Glossary](GLOSSARY.md)
@@ -515,8 +515,8 @@ The architecture assumes:
 | M1, before merging | Approve deleting M0B test-run rows on `production` and `dev`, so migration `0003` can run | Done 2026-11-08 |
 | M1, before merging | Neon Auth settings on Render and Vercel, trust the Vercel URL in Neon Auth | Done 2026-11-08, by Claude through the MCP servers |
 | M1, before merging | Decide D27: turn off email-and-password sign-in | Done 2026-11-08: approved and turned off on `production` and `dev` |
-| Any time | Delete the now-empty `ADMIN_TOKEN` variable on Render | Pending |
-| M1, after merging | Sign in, then give your account the `admin` role in Neon Auth | Pending |
+| Any time | Delete the now-empty `ADMIN_TOKEN` variable on Render | Done 2026-11-08 |
+| M1, after merging | Live acceptance | Done 2026-11-08 |
 | Before opening sign-ups | Create a Google OAuth client and publish the consent screen | Pending |
 
 ---
