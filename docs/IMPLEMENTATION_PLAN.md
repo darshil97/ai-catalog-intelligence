@@ -9,7 +9,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | Module | Name | Depends on | Status |
 |---|---|---|---|
 | M0A | Foundation | — | Completed |
-| M0B | Processing platform | M0A | In Progress (B1 built, under review) |
+| M0B | Processing platform | M0A | In Progress (B1 merged, B2 in review) |
 | M1 | Accounts, suppliers and batches | M0A | Not Started |
 | M2 | File ingestion and storage | M0B, M1 | Not Started |
 | M3 | Spreadsheet extraction | M2 | Not Started |

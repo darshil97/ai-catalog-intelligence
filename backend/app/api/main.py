@@ -1,9 +1,13 @@
 """Builds the FastAPI application."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import health, test_runs
+from app.compute.starter import request_worker_start
 from app.config import get_api_config
 from app.middleware import RequestContextMiddleware
 from app.middleware.request_context import REQUEST_ID_HEADER
@@ -11,7 +15,15 @@ from app.utils.logger import configure_logging
 
 configure_logging()
 
-app = FastAPI(title="AI Catalog Intelligence API", version="0.1.0")
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Jobs may have been waiting while this API restarted, and nothing else would notice.
+    request_worker_start()
+    yield
+
+
+app = FastAPI(title="AI Catalog Intelligence API", version="0.1.0", lifespan=_lifespan)
 
 api_config = get_api_config()
 # Sign-in uses Bearer tokens rather than cookies, so credentials stay off.

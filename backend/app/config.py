@@ -93,8 +93,13 @@ def get_admin_config() -> dict[str, str]:
     return dict(get_config()["admin"])
 
 
-def get_compute_config() -> dict[str, str]:
-    """Return compute settings. Keys: worker_controller."""
+def get_compute_config() -> dict[str, Any]:
+    """Return compute settings.
+
+    Keys: worker_controller, instance_id, region, heartbeat_fresh_seconds,
+    start_cooldown_seconds, start_retry_seconds, start_retry_max_attempts,
+    max_ec2_hours_per_month.
+    """
     return dict(get_config()["compute"])
 
 
@@ -109,9 +114,10 @@ def get_queue_config() -> dict[str, int]:
 def get_worker_config() -> dict[str, Any]:
     """Return worker settings.
 
-    Keys: power_controller, code_sha, ec2_instance_id, heartbeat_file, heartbeat_seconds,
-    poll_busy_seconds, poll_idle_seconds, busy_window_seconds, idle_timeout_seconds,
-    stop_grace_seconds, reaper_interval_seconds, production_db_endpoint.
+    Keys: power_controller, code_sha, ec2_instance_id, heartbeat_file, power_request_file,
+    heartbeat_seconds, poll_busy_seconds, poll_idle_seconds, busy_window_seconds,
+    idle_timeout_seconds, stop_grace_seconds, reaper_interval_seconds, max_job_seconds,
+    production_db_endpoint.
     """
     return dict(get_config()["worker"])
 

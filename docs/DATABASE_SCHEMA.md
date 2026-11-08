@@ -1,6 +1,6 @@
 # Database Schema
 
-**Status: planned, except the job queue tables** (`pipeline_runs`, `pipeline_stage_runs`, `jobs`, `processing_errors`, `worker_control`, `worker_instances`, `worker_sessions`), which migration `0002` defines. It's applied to the Neon `dev` and `test` branches, and not yet to `production`. This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
+**Status: planned, except the job queue tables** (`pipeline_runs`, `pipeline_stage_runs`, `jobs`, `processing_errors`, `worker_control`, `worker_instances`, `worker_sessions`), which migration `0002` defines. It's applied to the Neon `production`, `dev` and `test` branches. This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
 PostgreSQL on Neon (Sydney), with the `pgvector` extension.
 

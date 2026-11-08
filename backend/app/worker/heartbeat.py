@@ -1,7 +1,9 @@
 """A background thread that keeps this worker's lease and heartbeat alive."""
 
+import os
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from uuid import UUID
 
@@ -16,6 +18,11 @@ from app.worker import state
 logger = get_logger(__name__)
 
 
+def _exit_process() -> None:
+    # A hung handler may never return, so this can't wait for a clean shutdown.
+    os._exit(1)
+
+
 class Heartbeat(threading.Thread):
     """Renews the current job's lease and records the worker as alive."""
 
@@ -26,6 +33,8 @@ class Heartbeat(threading.Thread):
         interval_seconds: float,
         settings: QueueSettings,
         heartbeat_file: str | None,
+        max_job_seconds: float,
+        on_stuck: Callable[[], None] | None = None,
     ) -> None:
         """Set up the thread. Call start() to begin."""
         super().__init__(name="heartbeat", daemon=True)
@@ -39,6 +48,9 @@ class Heartbeat(threading.Thread):
         self._job: Job | None = None
         self._lease_lost = threading.Event()
         self._last_renewed = time.monotonic()
+        self._job_started = time.monotonic()
+        self._max_job_seconds = max_job_seconds
+        self._on_stuck = on_stuck or _exit_process
 
     def track(self, job: Job) -> None:
         """Start renewing this job's lease."""
@@ -46,6 +58,7 @@ class Heartbeat(threading.Thread):
             self._job = job
             self._lease_lost.clear()
             self._last_renewed = time.monotonic()
+            self._job_started = time.monotonic()
 
     def untrack(self) -> None:
         """Stop renewing the current job's lease."""
@@ -70,6 +83,14 @@ class Heartbeat(threading.Thread):
         """Send one heartbeat. A database failure is tolerated until the lease would expire."""
         with self._lock:
             job = self._job
+        if job and time.monotonic() - self._job_started > self._max_job_seconds:
+            # Heartbeats alone would keep a hung job, and the machine, alive forever. Exiting
+            # lets the lease expire, so attempts run out and the job fails visibly.
+            logger.error(
+                "Job stuck, exiting: job_id=%s max_job_seconds=%s", job.id, self._max_job_seconds
+            )
+            self._on_stuck()
+            return
         try:
             with get_pool().connection() as conn:
                 state.heartbeat(conn, self._instance_id, self._ec2_instance_id)

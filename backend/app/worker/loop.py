@@ -41,6 +41,7 @@ class WorkerSettings:
     reaper_interval_seconds: float
     processing_enabled: bool
     heartbeat_file: str | None = None
+    max_job_seconds: float = 1800
 
 
 class Worker:
@@ -90,6 +91,7 @@ class Worker:
             settings.heartbeat_seconds,
             self._queue_settings,
             settings.heartbeat_file,
+            settings.max_job_seconds,
         )
         self._heartbeat.start()
 

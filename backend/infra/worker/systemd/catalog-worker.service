@@ -1,0 +1,36 @@
+[Unit]
+Description=AI Catalog processing worker
+Wants=network-online.target
+After=network-online.target catalog-worker-env.service
+Requires=catalog-worker-env.service
+# No start limit: a crash loop is ended by the watchdog powering off the machine.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=catalog
+Group=catalog
+WorkingDirectory=/opt/catalog/app/backend
+EnvironmentFile=/etc/catalog-worker/env
+ExecStart=/opt/catalog/app/backend/.venv/bin/python worker.py
+# After a crash, the worker refuses to start until the old heartbeat is stale, so keep retrying.
+Restart=on-failure
+RestartSec=15
+# Allows for the worker's stop grace period.
+TimeoutStopSec=90
+RuntimeDirectory=catalog-worker
+RuntimeDirectoryPreserve=yes
+# An out-of-memory kill hits the worker, leaving the Systems Manager agent running.
+MemoryMax=3G
+# The worker parses files uploaded by the public, so it gets as little access as possible.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

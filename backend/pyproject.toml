@@ -13,6 +13,7 @@ dependencies = [
 
 [project.optional-dependencies]
 api = [
+    "boto3>=1.43,<2",
     "fastapi>=0.162,<1",
     "uvicorn>=0.54,<1",
 ]
@@ -55,3 +56,7 @@ ignore = ["G201"]
 python_version = "3.12"
 strict = true
 files = ["app", "server.py", "worker.py"]
+
+[[tool.mypy.overrides]]
+module = ["boto3", "botocore.*"]
+ignore_missing_imports = true

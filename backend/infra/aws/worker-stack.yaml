@@ -1,0 +1,164 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: AI Catalog Intelligence worker. One on-demand EC2 instance, with no inbound access.
+
+# Create secrets first, because the instance reads them on first boot:
+#   /catalog/prod/worker/database_url  (SecureString)
+#   /catalog/prod/worker/deploy_key    (SecureString)
+#
+# Deleting this stack needs termination protection turned off on the instance first.
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3a.medium
+    Description: Can be changed later while the instance is stopped.
+  VolumeSizeGb:
+    Type: Number
+    Default: 20
+  ImageId:
+    # A fixed ID rather than "latest Ubuntu", so a later stack update can't replace the instance
+    # just because a newer image was released. This is Ubuntu 24.04 in ap-southeast-2.
+    Type: AWS::EC2::Image::Id
+    Default: <AMI_ID>
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: <VPC_ID>
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Default: <SUBNET_ID>
+  RepoSshUrl:
+    Type: String
+    Default: git@github.com:darshil97/ai-catalog-intelligence.git
+
+Resources:
+  WorkerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: AI Catalog worker. No inbound access, managed through Systems Manager.
+      VpcId: !Ref VpcId
+      Tags:
+        - { Key: Name, Value: catalog-worker }
+
+  WorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: catalog-worker
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        # No EC2 permissions: the worker powers off through the operating system.
+        - PolicyName: read-worker-secrets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/catalog/prod/worker/*
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub ssm.${AWS::Region}.amazonaws.com
+
+  WorkerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: catalog-worker
+      Roles:
+        - !Ref WorkerRole
+
+  WorkerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref WorkerSecurityGroup
+      IamInstanceProfile: !Ref WorkerInstanceProfile
+      CreditSpecification:
+        CPUCredits: unlimited
+      MetadataOptions:
+        HttpTokens: required
+        HttpPutResponseHopLimit: 1
+      DisableApiTermination: true
+      InstanceInitiatedShutdownBehavior: stop
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: !Ref VolumeSizeGb
+            Encrypted: true
+            DeleteOnTermination: true
+      Tags:
+        - { Key: Name, Value: catalog-worker }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Runs once, on first boot. If anything fails, power off so a broken machine can't
+          # keep billing. As a backstop, it powers off after 45 minutes regardless.
+          set -euxo pipefail
+          exec > >(tee /var/log/catalog-bootstrap.log) 2>&1
+          trap 'echo "Bootstrap failed"; shutdown -h now' ERR
+          shutdown -h +45 "Bootstrap time limit"
+          export HOME=/root DEBIAN_FRONTEND=noninteractive
+
+          # Boot-time package updates can hold the lock for a while.
+          apt-get -o DPkg::Lock::Timeout=300 update -q
+          apt-get -o DPkg::Lock::Timeout=300 install -y -q git python3-venv
+          mkdir -p /opt/catalog
+          python3 -m venv /opt/catalog/tools
+          /opt/catalog/tools/bin/pip install --quiet uv boto3
+
+          install -d -m 700 /root/.ssh
+          /opt/catalog/tools/bin/python - <<'PY'
+          import boto3, os
+          key = boto3.client("ssm", region_name="${AWS::Region}").get_parameter(
+              Name="/catalog/prod/worker/deploy_key", WithDecryption=True
+          )["Parameter"]["Value"]
+          fd = os.open("/root/.ssh/catalog_deploy", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+          os.write(fd, (key.strip() + "\n").encode())
+          os.close(fd)
+          PY
+          # GitHub's published host key, pinned so the first clone can't be redirected.
+          echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > /root/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i /root/.ssh/catalog_deploy -o IdentitiesOnly=yes"
+          git clone --branch main ${RepoSshUrl} /opt/catalog/app
+
+          bash /opt/catalog/app/backend/infra/worker/install.sh
+          shutdown -c
+
+  # Used by the API on Render, which has no AWS identity. It can start this one instance and
+  # nothing else. Create its access key in the console, so the secret never passes through
+  # CloudFormation or its outputs.
+  ApiUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: catalog-api
+      Policies:
+        - PolicyName: start-worker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ec2:StartInstances
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${WorkerInstance}
+              - Effect: Allow
+                # AWS doesn't support limiting this action to one instance.
+                Action: ec2:DescribeInstances
+                Resource: "*"
+
+Outputs:
+  InstanceId:
+    Description: Set as WORKER_INSTANCE_ID on Render.
+    Value: !Ref WorkerInstance
+  ApiUserName:
+    Description: Create an access key for this user in the console.
+    Value: !Ref ApiUser

@@ -12,7 +12,7 @@ How this project is deployed, what each service needs, and what to do when somet
 | Frontend | Vercel | https://ai-catalog-intelligence.vercel.app | `main`, `frontend/` |
 | Database and auth | Neon, Sydney | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`). Branches: `production`, `dev`, `test`. | Alembic migrations |
 | Monitoring | UptimeRobot | `GET /health` on the API, every 5 minutes | — |
-| Worker | EC2, Sydney | **Planned (M0B)** | `main`, `backend/` |
+| Worker | EC2, Sydney | **Not created yet (M0B stage B2)** | `main`, `backend/` |
 
 ## Normal deployment
 
@@ -113,7 +113,7 @@ UV_PROJECT_ENVIRONMENT="$CONDA_PREFIX" uv sync --frozen --inexact --extra api --
 
 ## Database migrations
 
-- **Current state:** the baseline is applied to `dev` only. `production` hasn't been migrated, because nothing there needs it yet.
+- **Current state:** migrations through `0002` are applied to `production`, `dev` and `test`. The first `production` migration was applied manually on 2026-11-08, with the owner's approval.
 - **Production migrations run from GitHub Actions** once the deployment jobs exist in `ci.yml` (M0B), in the order migrate → worker → API. Render's pre-deploy commands are documented for paid services, so they aren't used.
 - **Expand/contract only:** a migration must stay compatible with the code currently running.
 - **Migrations use the direct URL** (pooling off), and the app uses the pooled one.
@@ -181,12 +181,75 @@ A new Neon branch starts with **the same role passwords as its parent**, so a pa
 | Neon `dev` or `test` password | Neon console | Update the URLs in `backend/.env` |
 | Bedrock API key | AWS console | Update `backend/.env` |
 
-## Worker and AWS (Planned: M0B)
+## Worker and AWS
 
-Not built yet. The design is in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#9-infrastructure). M0B will add here:
+**Status:** files are written, and the stack hasn't been created yet.
 
-- AWS stack creation and its parameters.
-- EC2, Parameter Store and GitHub OIDC setup.
-- The worker deploy in `ci.yml`, including draining.
-- How to pause processing, and how to confirm EC2 has stopped.
-- `processing_enabled` and the global cost caps.
+The template is [worker-stack.yaml](../backend/infra/aws/worker-stack.yaml). Region is always `ap-southeast-2`, because the account's policy denies other regions.
+
+### Before creating the stack
+
+The instance reads these on first boot, so they must exist first. Create both in **Systems Manager → Parameter Store** as **SecureString**. The merged code must also be on `main`, because the instance clones it.
+
+| Parameter | Value |
+|---|---|
+| `/catalog/prod/worker/database_url` | Neon `production` branch, pooling on |
+| `/catalog/prod/worker/deploy_key` | The private half of a read-only GitHub deploy key |
+
+Create the deploy key locally, then add `catalog_deploy.pub` under the repo's **Settings → Deploy keys**, leaving write access off:
+
+```bash
+ssh-keygen -t ed25519 -N "" -C catalog-worker -f catalog_deploy
+```
+
+Delete both key files once it's stored.
+
+### After creating the stack
+
+Set these on Render, as well as those listed under [Environment variables](#environment-variables):
+
+| Variable | Value | Secret |
+|---|---|---|
+| `WORKER_CONTROLLER` | `ec2` | No |
+| `WORKER_INSTANCE_ID` | The stack's `InstanceId` output | No |
+| `AWS_REGION` | `ap-southeast-2` | No |
+| `AWS_ACCESS_KEY_ID` | Access key of IAM user `catalog-api`, created in the console | **Yes** |
+| `AWS_SECRET_ACCESS_KEY` | As above | **Yes** |
+| `ADMIN_TOKEN` | Temporary, removed in M1. From `openssl rand -hex 32`. | **Yes** |
+
+### How the worker stops
+
+| Layer | What it does |
+|---|---|
+| Idle shutdown | After 5 idle minutes, the worker asks systemd to power off through a file. It has no privileges and needs no EC2 permissions. |
+| Job time limit | A job running over 30 minutes ends the process, because a hung job would otherwise keep the machine on. |
+| Watchdog timer | Every 5 minutes, powers off if the heartbeat has been stale for 15 minutes, or after 8 hours of uptime. |
+| Monthly cap | The API won't start EC2 after 30 hours in a calendar month. |
+| Bootstrap | First boot powers off on any failure, and after 45 minutes regardless. |
+| Budget | The owner's $20 AWS budget. |
+
+### Working on the instance
+
+Connect with **Systems Manager → Session Manager**. There is no SSH. To stop the watchdog powering off during up to an hour of maintenance:
+
+```bash
+sudo touch /run/catalog-maintenance
+```
+
+Useful logs:
+
+```bash
+journalctl -u catalog-worker -n 100
+```
+
+```bash
+sudo cat /var/log/catalog-bootstrap.log
+```
+
+### Deleting the stack
+
+Turn off termination protection on the instance first, or the delete fails. This stops the EBS charge.
+
+### Planned
+
+Worker deploys arrive in stage B3. GitHub OIDC can't be used, because the account's organization policy denies creating the provider (D26).

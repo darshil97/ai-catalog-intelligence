@@ -67,3 +67,23 @@ WHERE id = %(instance_id)s;
 UPDATE worker_sessions
 SET ended_at = now(), last_seen_at = now()
 WHERE ec2_instance_id = %(ec2_instance_id)s AND ended_at IS NULL;
+
+-- name: claimable_pending
+SELECT count(*) AS count
+FROM jobs j CROSS JOIN worker_control c
+WHERE j.status = 'pending'
+  AND j.contract_version BETWEEN COALESCE(c.min_contract, j.contract_version)
+                             AND COALESCE(c.max_contract, j.contract_version);
+
+-- name: ec2_seconds_this_month
+SELECT COALESCE(SUM(EXTRACT(EPOCH FROM COALESCE(ended_at, last_seen_at) - started_at)), 0) AS seconds
+FROM worker_sessions
+WHERE started_at >= date_trunc('month', now());
+
+-- name: take_start_cooldown
+UPDATE worker_control
+SET last_start_requested_at = now(), updated_at = now()
+WHERE id = 1
+  AND (last_start_requested_at IS NULL
+       OR last_start_requested_at < now() - make_interval(secs => %(cooldown_seconds)s))
+RETURNING id;

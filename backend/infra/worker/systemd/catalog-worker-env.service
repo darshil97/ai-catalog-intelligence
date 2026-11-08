@@ -1,0 +1,11 @@
+[Unit]
+Description=Write the AI Catalog worker's environment file
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/catalog/tools/bin/python /opt/catalog/render_env.py
+# Parameter Store may not be reachable straight after boot.
+Restart=on-failure
+RestartSec=5
