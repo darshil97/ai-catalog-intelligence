@@ -38,7 +38,10 @@ Set under the service's **Environment** tab. Saving redeploys the service.
 | `APP_ENV` | `production` | No |
 | `API_HOST` | `0.0.0.0` | No |
 | `CORS_ORIGINS` | `https://ai-catalog-intelligence.vercel.app`. Comma-separated, no trailing slash. | No |
-| `DATABASE_URL` | Neon `production` branch, connection string with pooling on. Nothing uses it until M0B or M1. | **Yes** |
+| `DATABASE_URL` | Neon `production` branch, connection string with pooling on. | **Yes** |
+| `NEON_AUTH_BASE_URL` | Neon Auth URL of the `production` branch, such as `https://ep-xxx.neonauth.ap-southeast-2.aws.neon.tech/neondb/auth`. The API derives the JWKS URL, issuer and audience from it. | No |
+| `ACCESS_ALLOWLIST` | Optional. Comma-separated emails always let in. Defaults to the owner's address in `config.yaml`. | No |
+| `SIGNUPS_ENABLED` | Optional, default `false`. Only the owner turns it on, M7 at the earliest. | No |
 
 Render sets `PORT` and `RENDER_GIT_COMMIT` itself. `/health` reports the second as `code_sha`.
 
@@ -51,6 +54,10 @@ Set under **Settings → Environment Variables**. A value change needs a new dep
 | Variable | Value | Secret |
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | `https://YOUR-SERVICE.onrender.com`, no trailing slash | No. `NEXT_PUBLIC_` values reach the browser, so never put secrets in them. |
+| `NEON_AUTH_BASE_URL` | Neon Auth URL of the `production` branch, the same value as on Render. Server-only. | No |
+| `NEON_AUTH_COOKIE_SECRET` | From `openssl rand -base64 32`. Signs the session cookie cache. Server-only, at least 32 characters. | **Yes** |
+
+Sign-in requests go through the app's own `/api/auth` route, so session cookies are first-party. The Vercel URL is a trusted domain in Neon Auth on the `production` branch (added 2026-11-08). Preview URLs aren't, so sign-in works only on the production URL. Email-and-password sign-in is off on `production` and `dev` (D27).
 
 ### Local (`backend/.env`, `frontend/.env.local`)
 
@@ -63,8 +70,9 @@ Both are gitignored. Start from the `.env.example` file beside each one.
 | `CORS_ORIGINS` | `http://localhost:3000` | No |
 | `DATABASE_URL` | Neon `dev` branch, pooling on | **Yes** |
 | `DATABASE_URL_DIRECT` | Neon `dev` branch, pooling off. Used by migrations. | **Yes** |
-| `ADMIN_TOKEN` | Temporary (M0B). Long random value. Protects the test-run endpoints, which are removed in M1. | **Yes** |
-| `TEST_DATABASE_URL` | Neon `test` branch, pooling on. Tests erase its queue tables. | **Yes** |
+| `NEON_AUTH_BASE_URL` | Neon Auth URL of the `dev` branch. In both `backend/.env` and `frontend/.env.local`. | No |
+| `NEON_AUTH_COOKIE_SECRET` (frontend) | From `openssl rand -base64 32` | **Yes** |
+| `TEST_DATABASE_URL` | Neon `test` branch, pooling on. Tests erase its queue, profile, supplier and batch tables. | **Yes** |
 | `AWS_BEARER_TOKEN_BEDROCK` | Bedrock API key, local development only | **Yes** |
 | `AWS_REGION` | `ap-southeast-2` | No |
 | `NEXT_PUBLIC_API_URL` (frontend) | `http://localhost:8000` | No |
@@ -215,7 +223,6 @@ Set these on Render, as well as those listed under [Environment variables](#envi
 | `AWS_REGION` | `ap-southeast-2` | No |
 | `AWS_ACCESS_KEY_ID` | Access key of IAM user `catalog-api`, created in the console | **Yes** |
 | `AWS_SECRET_ACCESS_KEY` | As above | **Yes** |
-| `ADMIN_TOKEN` | Temporary, removed in M1. From `openssl rand -hex 32`. | **Yes** |
 
 ### How the worker stops
 

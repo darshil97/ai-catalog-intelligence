@@ -1,6 +1,5 @@
-"""Temporary (M0B): submits and reads test runs. Removed in M1."""
+"""Admin-only test runs of the no-op pipeline."""
 
-import hmac
 from typing import Any
 from uuid import UUID
 
@@ -9,7 +8,7 @@ import psycopg_pool
 from fastapi import HTTPException
 
 from app.compute.starter import request_worker_start
-from app.config import get_admin_config, get_pipeline_config, get_processing_config
+from app.config import get_pipeline_config, get_processing_config
 from app.db import DatabaseNotConfiguredError, get_pool
 from app.jobs import queue
 from app.jobs.models import StageSpec
@@ -20,14 +19,6 @@ from app.utils.request_id import get_request_id
 logger = get_logger(__name__)
 
 _DATABASE_ERRORS = (DatabaseNotConfiguredError, psycopg.OperationalError, psycopg_pool.PoolTimeout)
-
-
-def is_authorized(token: str | None) -> bool:
-    """Check the admin token. With no token configured, nothing is authorized."""
-    expected = get_admin_config()["token"]
-    if not expected or token is None:
-        return False
-    return hmac.compare_digest(token.encode(), expected.encode())
 
 
 def submit_test_run(
@@ -65,11 +56,11 @@ def submit_test_run(
     return {"run_id": run_id}
 
 
-def get_test_run(run_id: UUID) -> dict[str, Any]:
-    """Return a run's progress.
+def get_test_run(run_id: UUID, owner: str) -> dict[str, Any]:
+    """Return the progress of one of the owner's runs.
 
     Raises:
-        HTTPException: 404 if the run doesn't exist, or 503 if the database is down.
+        HTTPException: 404 if the owner has no such run, or 503 if the database is down.
     """
     try:
         with get_pool().connection() as conn:
@@ -77,7 +68,7 @@ def get_test_run(run_id: UUID) -> dict[str, Any]:
     except _DATABASE_ERRORS as exc:
         logger.error("Test run lookup failed: error=%s", type(exc).__name__, exc_info=True)
         raise HTTPException(status_code=503, detail="Database unavailable") from exc
-    if status is None:
+    if status is None or status.run["owner_user_id"] != owner:
         raise HTTPException(status_code=404, detail="Not Found")
     if status.run["finished_at"] is None:
         request_worker_start()

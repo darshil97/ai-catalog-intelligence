@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health, test_runs
+from app.api.routes import batches, health, me, suppliers, test_runs
 from app.compute.starter import request_worker_start
 from app.config import get_api_config
 from app.middleware import RequestContextMiddleware
@@ -39,4 +39,7 @@ app.add_middleware(
 app.add_middleware(RequestContextMiddleware)
 
 app.include_router(health.router)
+app.include_router(me.router)
+app.include_router(suppliers.router)
+app.include_router(batches.router)
 app.include_router(test_runs.router)

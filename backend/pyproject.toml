@@ -15,6 +15,7 @@ dependencies = [
 api = [
     "boto3>=1.43,<2",
     "fastapi>=0.162,<1",
+    "pyjwt[crypto]>=2.10,<3",
     "uvicorn>=0.54,<1",
 ]
 # Heavy processing packages (torch, OpenCV, OCR) belong here, never in `api`.
@@ -48,6 +49,10 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B", "G", "S", "T20"]
 # The house style logs failures with logger.error(..., exc_info=True).
 ignore = ["G201"]
+
+[tool.ruff.lint.isort]
+# Tests import shared helpers from conftest, which pytest puts on the path.
+known-first-party = ["app", "conftest"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S"]

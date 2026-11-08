@@ -34,6 +34,8 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 | [D24](#d24-langchain-for-llm-calls) | LangChain for all LLM calls | Approved |
 | [D25](#d25-langgraph-only-if-required) | LangGraph only if required | Approved |
 | [D26](#d26-github-oidc-is-blocked) | GitHub OIDC is blocked: deploy with a narrow IAM user key | Approved |
+| [D27](#d27-google-only-sign-in) | Google-only sign-in: verified emails only, and email-and-password turned off | Approved |
+| [D28](#d28-hand-written-frontend-api-types) | Hand-written frontend API types until the generator supports TypeScript 6 | Proposed |
 
 ---
 
@@ -531,3 +533,38 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 **Recommendation:** an IAM user whose key is stored in a GitHub environment limited to `main`, can only start the worker and run one deploy document, and is rotated every 90 days.
 
 **Consequences:** D17's deployment path changes once this is decided. Stage B2 isn't affected.
+
+---
+
+## D27: Google-only sign-in
+
+**Status:** Approved by the owner on 2026-11-08. Email-and-password sign-in and sign-up were turned off in Neon Auth on `production` and `dev` the same day.
+
+**Finding (2026-11-08):** Neon Auth on the `dev` branch has email-and-password sign-up on, with no email verification. Anyone could sign up as `owner@example.com` with a password and, if the API trusted the email claim alone, pass the allowlist.
+
+**Decision:**
+1. *Implemented:* the API refuses tokens whose `emailVerified` claim isn't literally `true` (403, `email_unverified`). Google always verifies, so this costs nothing for Google users.
+2. *Applied:* email-and-password sign-in is off in Neon Auth on `production` and `dev`, matching D6 (Google only). The frontend offers only Google.
+
+**Alternatives considered:**
+- *Rely on the frontend showing only Google:* the Neon Auth API can still be called directly.
+- *Require email verification for passwords:* still a second sign-in path to secure, with no benefit.
+
+**Consequences:** No password flow exists anywhere. A verified-email check stays in the API even after the switch-off, as defense in depth.
+
+---
+
+## D28: Hand-written frontend API types
+
+**Status:** Proposed (M1)
+
+**Context:** PROJECT_CONTEXT says frontend types are generated from the backend's OpenAPI schema. `openapi-typescript` 7.13 requires TypeScript 5, and the frontend uses TypeScript 6, so installing it needs `--legacy-peer-deps`.
+
+**Decision:** keep the response types in `frontend/src/lib/types.ts` by hand, mirroring `backend/app/api/schemas`, until the generator supports TypeScript 6. The backend's `/openapi.json` stays the reference.
+
+**Alternatives considered:**
+- *`--legacy-peer-deps`:* hides real peer conflicts for every future install.
+- *Downgrade to TypeScript 5:* churn for a small number of types.
+
+**Consequences:** a backend schema change must update `types.ts` in the same change. Revisit when M2 adds more endpoints.
+

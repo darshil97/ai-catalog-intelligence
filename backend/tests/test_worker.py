@@ -20,6 +20,7 @@ from app.worker import state
 from app.worker.loop import Worker, WorkerSettings
 from app.worker.power import get_power_controller
 from app.worker.state import WorkerAlreadyRunningError
+from conftest import ensure_user
 
 pytestmark = pytest.mark.usefixtures("db")
 
@@ -69,6 +70,7 @@ def _sql(statement: Any, **params: Any) -> list[dict[str, Any]]:
 
 def _submit(owner: str = "alice", **payload: Any) -> UUID:
     stage = StageSpec("noop", "noop_plan", {"chunks": 1, "sleep_seconds": 0, **payload})
+    ensure_user(owner)
     with get_pool().connection() as conn:
         return queue.create_run(conn, "noop", [stage], owner, "req", QUEUE)
 
@@ -143,6 +145,7 @@ def test_permanent_failure_is_not_retried(start_worker: Any) -> None:
 
 def test_unknown_job_type_fails_visibly(start_worker: Any) -> None:
     # Bad data must fail the run, not crash or stall the worker.
+    ensure_user("a")
     with get_pool().connection() as conn:
         run_id = queue.create_run(conn, "x", [StageSpec("s", "no_such_job")], "a", None, QUEUE)
     start_worker()

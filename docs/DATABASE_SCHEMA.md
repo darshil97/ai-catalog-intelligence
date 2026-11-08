@@ -1,6 +1,10 @@
 # Database Schema
 
-**Status: planned, except the job queue tables** (`pipeline_runs`, `pipeline_stage_runs`, `jobs`, `processing_errors`, `worker_control`, `worker_instances`, `worker_sessions`), which migration `0002` defines. It's applied to the Neon `production`, `dev` and `test` branches. This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
+**Status: planned, except these tables:**
+- **Job queue** (`pipeline_runs`, `pipeline_stage_runs`, `jobs`, `processing_errors`, `worker_control`, `worker_instances`, `worker_sessions`): migration `0002`, applied to the Neon `production`, `dev` and `test` branches.
+- **Accounts and catalog structure** (`user_profiles`, `user_limits`, `usage_ledger`, `suppliers`, `batches`, plus owner foreign keys on `pipeline_runs` and `jobs`): migration `0003` (M1), applied to `test` only so far. It refuses to run while queue rows exist whose owners have no profile.
+
+This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
 PostgreSQL on Neon (Sydney), with the `pgvector` extension.
 
@@ -49,18 +53,20 @@ PostgreSQL on Neon (Sydney), with the `pgvector` extension.
 |---|---|---|
 | `id` | TEXT PK | The token's `sub` |
 | `email` | TEXT NOT NULL | |
-| `role` | TEXT NOT NULL | `user`, `admin` |
+| `role` | TEXT NOT NULL | `user`, `admin`. Copied from the token, which stays the source of truth. |
 | `status` | TEXT NOT NULL | `active`, `waitlisted`, `disabled` |
-| `created_at` | TIMESTAMPTZ | |
+| `created_at`, `updated_at` | TIMESTAMPTZ | |
 
 There is no foreign key into `neon_auth`, so the managed schema can change without breaking ours.
+
+**Admission:** the first request with a valid token creates the profile. An allowlisted, verified email is `active`. Otherwise it's `active` only with `signups_enabled` on and fewer active profiles than `max_total_users`, and `waitlisted` if not. Admissions take `LOCK TABLE user_profiles IN SHARE ROW EXCLUSIVE MODE` for their transaction, so two sign-ups can't both take the last place. A waitlisted profile is re-checked on each request. Only an admin sets `disabled`, directly in the database.
 
 ### `user_limits`
 
 | Column | Type | Notes |
 |---|---|---|
 | `user_id` | TEXT PK, FK | |
-| `overrides` | JSONB NOT NULL | Limit name to value. Absent means use the config default. |
+| `overrides` | JSONB NOT NULL | Limit name to value. Absent means use the config default, and null means unlimited. Unknown names and invalid values are ignored with a warning. |
 | `updated_at` | TIMESTAMPTZ | |
 
 ### `usage_ledger`
@@ -72,14 +78,16 @@ Append-only. A restoration is a new row, never an update.
 | `id` | UUID PK | |
 | `user_id` | TEXT FK | |
 | `kind` | TEXT NOT NULL | For example `submission`, `llm_tokens`, `worker_seconds` |
-| `quantity` | NUMERIC NOT NULL | |
+| `quantity` | NUMERIC NOT NULL | Positive |
 | `cost_usd` | NUMERIC | When known |
-| `pipeline_run_id` | UUID FK, nullable | |
+| `pipeline_run_id` | UUID FK, nullable | `ON DELETE SET NULL`, so usage outlives purged runs |
 | `is_restoration` | BOOLEAN NOT NULL DEFAULT false | The "restored" flag |
-| `restores_entry_id` | UUID FK self, nullable | The entry being reversed |
+| `restores_entry_id` | UUID FK self, nullable | The entry being reversed. Set exactly when `is_restoration` is true. |
 | `created_at` | TIMESTAMPTZ | |
 
-**Index:** `(user_id, kind, created_at)`.
+**Index:** `(user_id, kind, created_at)`, and partial `UNIQUE(restores_entry_id)`, so an entry is restored at most once.
+
+**Counting:** an entry counts unless a restoration points at it. The rolling window uses the original entry's `created_at`.
 
 **Concurrency rule:** the submission transaction locks the user's `user_profiles` row with `SELECT … FOR UPDATE`, checks the ledger, then writes the ledger row and the job together. Simultaneous submissions can't both pass.
 
@@ -91,13 +99,15 @@ Append-only. A restoration is a new row, never an update.
 
 `id`, `owner_user_id` TEXT FK NOT NULL, `name` TEXT NOT NULL, `created_at`, `updated_at`.
 
-**Index:** `(owner_user_id)`.
+**Constraints:** `UNIQUE(owner_user_id, lower(name))`, so names are unique per owner ignoring case. `UNIQUE(id, owner_user_id)`, which batches reference.
 
 ### `batches`
 
-`id`, `supplier_id` FK, `owner_user_id` TEXT FK NOT NULL, `name`, `status`, `expires_at` (for retention), `created_at`, `updated_at`.
+`id`, `supplier_id`, `owner_user_id` TEXT FK NOT NULL, `name`, `status` (`draft` for now; later modules add values), `expires_at` (creation plus `retention_days`), `created_at`, `updated_at`.
 
-**Index:** `(owner_user_id, created_at)`, and `(expires_at)` for the purge job.
+**Constraints:** `FOREIGN KEY (supplier_id, owner_user_id) REFERENCES suppliers (id, owner_user_id)`, so a batch always belongs to its supplier's owner. It's `NO ACTION`, which refuses deleting a supplier that has batches yet lets deleting a user cascade to both.
+
+**Index:** `(owner_user_id, created_at)`, `(supplier_id, created_at)`, and `(expires_at)` for the purge job.
 
 ### `source_files`
 
@@ -349,8 +359,8 @@ Append-only audit trail: `id`, `actor_user_id` FK, `entity_type`, `entity_id`, `
 |---|---|---|
 | `id` | UUID PK | |
 | `pipeline` | TEXT NOT NULL | Pipeline name from config |
-| `batch_id` | UUID, nullable | Foreign key added in M1 |
-| `owner_user_id` | TEXT NOT NULL | Foreign key added in M1 |
+| `batch_id` | UUID FK, nullable | `ON DELETE CASCADE` (M1) |
+| `owner_user_id` | TEXT FK NOT NULL | `ON DELETE CASCADE` (M1) |
 | `status` | TEXT NOT NULL | `queued`, `running`, `succeeded`, `failed`, `cancelled` |
 | `products_found`, `products_kept`, `products_discarded` | INTEGER | |
 | `files_found`, `files_kept`, `files_discarded` | INTEGER | |
