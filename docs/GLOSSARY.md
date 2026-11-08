@@ -136,6 +136,12 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **JWT** | A signed token proving who the user is. | Sent with each API request, lasting 15 minutes. |
 | **JWKS** | Public keys used to check JWT signatures. | Cached by the API, so no database query. |
 | **`sub`** | The user ID inside a JWT. | Used as `user_profiles.id`. |
+| **Key rotation** | Replacing the keys that sign tokens. Tokens name their key with a `kid`. | An unknown `kid` makes the API refetch the JWKS, at most once every 30 seconds. |
+| **Profile** | This app's record of a signed-in user, created on first use. | A `user_profiles` row with a status of active, waitlisted or disabled. |
+| **Allowlist** | Emails always let in, even while sign-ups are closed or the user cap is reached. | The owner's Gmail address. |
+| **Waitlist** | Where signed-in users wait while sign-ups are closed or the user cap is reached. They can sign in, but can't use the app. | A stranger signing in before M7 sees the waitlist message. |
+| **Override** | A per-user change to a limit. Null means unlimited. | An admin account exempt from submission limits. |
+| **Restoration** | A ledger entry giving back usage after a platform failure. The original entry is never edited. | A submission lost to an EC2 failure is restored. |
 | **Usage limit** | A cap on what one user can do. | 5 products per submission. |
 | **Global cap** | A cap across all users, protecting the budget. | 30 EC2 hours per month. |
 | **Usage ledger** | An append-only record of usage. | The `usage_ledger` table. |

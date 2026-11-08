@@ -1,4 +1,4 @@
-"""Temporary (M0B): schemas for test runs. Removed in M1."""
+"""Schemas for admin-only test runs."""
 
 from datetime import datetime
 from typing import Literal
@@ -14,12 +14,6 @@ class TestRunRequest(BaseModel):
 
     chunks: int = Field(1, description="How many chunks to split the run into.")
     sleep_seconds: float = Field(0, ge=0, description="How long each chunk waits.")
-    owner: str = Field(
-        "system",
-        min_length=1,
-        max_length=100,
-        description="Run owner. Each owner may have one active run.",
-    )
     fail: Literal["transient_first_attempt", "transient_always", "permanent"] | None = Field(
         None, description="Makes each chunk fail on purpose, to test recovery."
     )

@@ -12,6 +12,7 @@ from app.db import get_pool
 from app.jobs import queue
 from app.jobs.errors import LeaseLostError, TransientJobError
 from app.jobs.models import JOB_CONTRACT_VERSION, ChunkSpec, Job, QueueSettings, StageSpec
+from conftest import ensure_user
 
 pytestmark = pytest.mark.usefixtures("db")
 
@@ -22,6 +23,7 @@ SETTINGS = QueueSettings(
 
 def _new_run(owner: str = "alice", stages: list[StageSpec] | None = None) -> UUID:
     stages = stages or [StageSpec(stage="one", job_type="noop")]
+    ensure_user(owner)
     with get_pool().connection() as conn:
         return queue.create_run(conn, "test", stages, owner, "req-1", SETTINGS)
 

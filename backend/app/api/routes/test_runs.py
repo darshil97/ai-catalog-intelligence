@@ -1,34 +1,25 @@
-"""Temporary (M0B): lets the owner run test jobs before sign-in exists. Removed in M1."""
+"""Admin-only diagnostics: runs the no-op pipeline to check the queue and worker end to end."""
 
-from typing import Annotated, Any
+from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, status
 
+from app.api.dependencies import AdminUser
 from app.api.schemas.test_runs import TestRunCreated, TestRunRequest, TestRunStatus
-from app.api.services.test_runs import get_test_run, is_authorized, submit_test_run
+from app.api.services.test_runs import get_test_run, submit_test_run
 
+# Hidden from the public schema. Anyone but an active admin gets 404.
 router = APIRouter(prefix="/internal/test-runs", include_in_schema=False)
 
 
-def _require_admin(token: Annotated[str | None, Header(alias="X-Admin-Token")] = None) -> None:
-    """Hide these endpoints from anyone without the admin token."""
-    if not is_authorized(token):
-        raise HTTPException(status_code=404, detail="Not Found")
+@router.post("", response_model=TestRunCreated, status_code=status.HTTP_201_CREATED)
+def create(request: TestRunRequest, profile: AdminUser) -> dict[str, UUID]:
+    """Queue a test run owned by the calling admin."""
+    return submit_test_run(request.chunks, request.sleep_seconds, profile.user_id, request.fail)
 
 
-@router.post(
-    "",
-    response_model=TestRunCreated,
-    status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(_require_admin)],
-)
-def create(request: TestRunRequest) -> dict[str, UUID]:
-    """Queue a test run."""
-    return submit_test_run(request.chunks, request.sleep_seconds, request.owner, request.fail)
-
-
-@router.get("/{run_id}", response_model=TestRunStatus, dependencies=[Depends(_require_admin)])
-def read(run_id: UUID) -> dict[str, Any]:
-    """Return a test run's progress."""
-    return get_test_run(run_id)
+@router.get("/{run_id}", response_model=TestRunStatus)
+def read(run_id: UUID, profile: AdminUser) -> dict[str, Any]:
+    """Return the progress of one of the calling admin's test runs."""
+    return get_test_run(run_id, profile.user_id)

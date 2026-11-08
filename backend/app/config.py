@@ -10,6 +10,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import yaml
 from dotenv import load_dotenv
@@ -85,12 +86,64 @@ def get_database_config() -> dict[str, Any]:
 
 def get_processing_config() -> dict[str, bool]:
     """Return the emergency stop setting. Keys: enabled (bool)."""
-    return {"enabled": str(get_config()["processing"]["enabled"]).strip().lower() == "true"}
+    return {"enabled": _as_bool(get_config()["processing"]["enabled"])}
 
 
-def get_admin_config() -> dict[str, str]:
-    """Return temporary admin settings. Keys: token."""
-    return dict(get_config()["admin"])
+def _as_bool(value: Any) -> bool:
+    return str(value).strip().lower() == "true"
+
+
+def _as_list(value: Any) -> list[str]:
+    """Split a comma-separated string, or copy a YAML list, dropping empty items."""
+    items = value if isinstance(value, list) else str(value).split(",")
+    return [str(item).strip() for item in items if str(item).strip()]
+
+
+def get_auth_config() -> dict[str, Any]:
+    """Return sign-in settings.
+
+    Keys: base_url, origin (the token issuer and audience, derived from base_url), jwks_url,
+    verifier, algorithms (list), leeway_seconds, jwks_timeout_seconds, jwks_cache_seconds,
+    jwks_min_refetch_seconds, profile_cache_seconds, profile_cache_max_entries.
+    """
+    section = dict(get_config()["auth"])
+    base_url = str(section["base_url"]).strip().rstrip("/")
+    parsed = urlparse(base_url)
+    section["base_url"] = base_url
+    # Neon sets both iss and aud to the origin of the auth URL, not the full URL.
+    section["origin"] = f"{parsed.scheme}://{parsed.netloc}" if parsed.netloc else ""
+    section["jwks_url"] = f"{base_url}/.well-known/jwks.json" if base_url else ""
+    section["algorithms"] = _as_list(section["algorithms"])
+    return section
+
+
+def get_access_config() -> dict[str, Any]:
+    """Return who may use the app.
+
+    Keys: signups_enabled (bool), allowlisted_emails (set of lowercase emails),
+    max_total_users (int).
+    """
+    section = get_config()["access"]
+    return {
+        "signups_enabled": _as_bool(section["signups_enabled"]),
+        "allowlisted_emails": {email.lower() for email in _as_list(section["allowlisted_emails"])},
+        "max_total_users": int(section["max_total_users"]),
+    }
+
+
+def get_limits_config() -> dict[str, int]:
+    """Return the default per-user limits, keyed by limit name."""
+    return {name: int(value) for name, value in get_config()["limits"].items()}
+
+
+def get_valid_limit_names() -> set[str]:
+    """Return the limit names that user_limits.overrides may use."""
+    return set(get_config()["limits"])
+
+
+def get_catalog_config() -> dict[str, int]:
+    """Return catalog settings. Keys: retention_days, max_name_length, max_list_items."""
+    return {name: int(value) for name, value in get_config()["catalog"].items()}
 
 
 def get_compute_config() -> dict[str, Any]:
@@ -135,5 +188,5 @@ def get_pipeline_config(name: str) -> list[dict[str, Any]]:
 
 
 def get_test_run_config() -> dict[str, int]:
-    """Return temporary test-run bounds. Keys: max_chunks, max_sleep_seconds."""
+    """Return admin test-run bounds. Keys: max_chunks, max_sleep_seconds."""
     return dict(get_config()["test_runs"])

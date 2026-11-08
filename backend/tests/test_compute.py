@@ -16,6 +16,7 @@ from app.jobs import queue
 from app.jobs.models import JOB_CONTRACT_VERSION, QueueSettings, StageSpec
 from app.worker.heartbeat import Heartbeat
 from app.worker.power import get_power_controller
+from conftest import ensure_user
 
 QUEUE = QueueSettings(60, 3, 0, 0)
 
@@ -127,6 +128,7 @@ def _sql(statement: Any, **params: Any) -> list[dict[str, Any]]:
 
 
 def _submit(owner: str = "alice") -> None:
+    ensure_user(owner)
     with get_pool().connection() as conn:
         queue.create_run(conn, "noop", [StageSpec("s", "noop")], owner, None, QUEUE)
 

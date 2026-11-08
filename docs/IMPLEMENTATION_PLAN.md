@@ -10,7 +10,7 @@ Each module gets its own proposal and approval before work starts, and review af
 |---|---|---|---|
 | M0A | Foundation | — | Completed |
 | M0B | Processing platform | M0A | Completed |
-| M1 | Accounts, suppliers and batches | M0A | Not Started |
+| M1 | Accounts, suppliers and batches | M0A | In Progress |
 | M2 | File ingestion and storage | M0B, M1 | Not Started |
 | M3 | Spreadsheet extraction | M2 | Not Started |
 | M4 | Document and image text extraction | M3 | Not Started |
@@ -114,7 +114,7 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 
 ## M1 Accounts, suppliers and batches
 
-**Status:** proposal approved by the owner on 2026-11-08. Implementation not started.
+**Status:** proposal approved by the owner on 2026-11-08. **Code implemented on 2026-11-08 and awaiting the owner's review.** Not yet merged, migrated on `production` or `dev`, or accepted live. See [Implementation notes](#m1-implementation-notes).
 
 **Approved additions to the scope below:**
 - Migration `0003`: `user_profiles`, `user_limits`, `usage_ledger`, `suppliers`, `batches`. Adds foreign keys from `pipeline_runs.owner_user_id` and `jobs.owner_user_id` to `user_profiles`. Expand-only.
@@ -150,6 +150,35 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 - **Cross-user access is attempted on every endpoint.**
 - Simultaneous submissions can't both pass a limit.
 - Key rotation: an unknown `kid` triggers a key refetch.
+
+### M1 implementation notes
+
+**Built:**
+- Migration `0003` as approved, plus a foreign key from `pipeline_runs.batch_id` to `batches` (planned in the schema). It stops with a clear message, rather than deleting anything, if queue rows without profiles exist.
+- `app/auth`: a verifier registry with the `neon_auth` verifier (EdDSA via cached JWKS, issuer, audience, expiry, 30-second leeway), profiles, and admission rules. Active profiles are cached for 60 seconds, so most requests make one database query.
+- `app/usage`: effective limits with per-user overrides (null means unlimited), `record_submission` (locks the profile row, then checks lifetime and rolling 24-hour limits), and append-only restorations. Nothing calls `record_submission` yet: the first submission endpoint arrives with processing in M2/M3.
+- `app/catalog` and endpoints: `GET /me`, `GET|POST /suppliers`, `GET|PATCH|DELETE /suppliers/{id}`, `GET|POST /suppliers/{id}/batches`, `GET|PATCH|DELETE /batches/{id}`. Each is one query.
+- Test runs require an active admin. Anyone else gets 404, and runs are owned by the calling admin. `ADMIN_TOKEN` is gone.
+- Frontend: Google sign-in through the app's own `/api/auth` route (first-party cookies), a waitlist message, and supplier and batch pages.
+
+**Differences from the proposal:**
+- Tokens without a verified email are refused (D27), because Neon Auth also allows unverified email-and-password sign-up.
+- Neon Auth gives ordinary users the role `authenticated`. Only `admin` grants admin.
+- A ban takes effect with the next token (Neon issues 15-minute tokens). Setting a profile to `disabled` takes effect within 60 seconds.
+- Frontend types are hand-written for now (D28).
+
+**Tests (on Neon `test`):** 76 new tests in `test_auth.py`, `test_access.py`, `test_catalog.py`, `test_usage.py` and `test_test_runs.py`, plus migration tests. Every catalog endpoint is attempted cross-user, unauthenticated and waitlisted.
+
+**Done before merging (2026-11-08, with the owner's approval):**
+1. Deleted the M0B test-run rows: `production` 2 runs and 5 jobs (owner `system`), `dev` 6 runs and 15 jobs (M0B end-to-end owners). Both queues are empty, so migration `0003` can run.
+2. Render: `NEON_AUTH_BASE_URL` set to the `production` Neon Auth URL. `ADMIN_TOKEN` set to empty, which hides the old test-run endpoints. Render's tool can't delete a single variable, so the owner can remove it in the dashboard.
+3. Vercel: `NEON_AUTH_BASE_URL` and `NEON_AUTH_COOKIE_SECRET` set for production and preview. They take effect with the next deployment.
+4. Neon Auth on `production`: `https://ai-catalog-intelligence.vercel.app` added as a trusted domain. `localhost` was already allowed on `production` and `dev`.
+5. D27 approved: email-and-password sign-in turned off (and sign-up disabled) on `production` and `dev`.
+
+Preview deployments use other URLs, which aren't trusted, so sign-in works only on the production URL.
+
+**After merging:** sign in once, then set your role to `admin` in Neon Auth (for example `UPDATE neon_auth."user" SET role = 'admin' WHERE email = '…'`) to keep test runs. Then run the live acceptance above.
 
 ---
 

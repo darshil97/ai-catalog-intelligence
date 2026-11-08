@@ -4,11 +4,11 @@
 
 | | |
 |---|---|
-| **Current status** | **M0A and M0B complete.** Everything below describes the planned system unless listed as implemented here. |
-| **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline, placeholder worker), frontend shell, CI, conda environment. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
-| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0002` are applied to `production`, `dev` and `test`. |
-| **Next module** | **M1 Accounts, suppliers and batches.** Proposal **approved** on 2026-11-08, and implementation not started. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md#m1-accounts-suppliers-and-batches) for the approved scope and decisions. |
-| **Last updated** | 2026-11-07 |
+| **Current status** | **M0A and M0B complete. M1 code implemented, awaiting the owner's review.** Everything below describes the planned system unless listed as implemented here. |
+| **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline), job queue and on-demand EC2 worker, CI and deploys. **M1 (in the working tree, not merged):** Neon Auth token checks, profiles, allowlist and waitlist, usage ledger and limits, supplier and batch CRUD with UI, admin-only test runs. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
+| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0002` are applied to `production`, `dev` and `test`. Migration `0003` (M1) is applied to `test` only. |
+| **Next module** | **M1 Accounts, suppliers and batches**: code done, waiting for review, the owner steps before merging, and live acceptance. See [M1 implementation notes](IMPLEMENTATION_PLAN.md#m1-implementation-notes). M2 follows. |
+| **Last updated** | 2026-11-08 |
 
 Related documents: [Implementation plan](IMPLEMENTATION_PLAN.md) · [Database schema](DATABASE_SCHEMA.md) · [Decisions](DECISIONS.md) · [Deployment](DEPLOYMENT.md) · [Glossary](GLOSSARY.md)
 
@@ -163,7 +163,7 @@ ai-catalog-intelligence/
 
 - Dependencies split into `api` and `worker` extras. Torch, OpenCV and OCR exist only in `worker`.
 - `GUIDELINES.md` applies to backend Python only and is a reference, not a strict rule. Record intentional differences in `DECISIONS.md`.
-- The backend publishes its OpenAPI schema, and frontend TypeScript types are generated from it.
+- The backend publishes its OpenAPI schema, and frontend TypeScript types are generated from it. Until the generator supports TypeScript 6, they're written by hand (D28).
 
 ---
 
@@ -311,12 +311,20 @@ Independent signals (SKU/model number, filename, OCR text, brand and attributes,
 
 ### Authentication
 
-1. The frontend signs users in with Google through Neon Auth. Users and sessions live in the `neon_auth` schema.
+1. The frontend signs users in with Google through Neon Auth. Its own `/api/auth` route proxies Neon Auth, so session cookies are first-party. Users and sessions live in the `neon_auth` schema.
 2. The frontend sends a 15-minute JWT as `Authorization: Bearer`.
-3. The API verifies it locally using cached JWKS public keys (EdDSA signature, `iss`, `aud`, `exp`), with no database query.
-4. On first use the API creates a `user_profiles` row keyed by `sub`.
+3. The API verifies it locally using cached JWKS public keys (EdDSA signature, `iss` and `aud` both equal to the auth URL's origin, `exp`), with no database query. An unknown key ID refetches the keys, at most once every 30 seconds.
+4. On first use the API creates a `user_profiles` row keyed by `sub`, and decides whether the user is active or waitlisted. Active profiles are cached for 60 seconds.
 
-Google-only at launch. Roles are `user` and `admin`, from the token's `role` claim, and the `banned` claim is also checked. Each Neon branch has its own auth environment.
+Google-only at launch (D27): a token without a verified email is refused. Roles are `user` and `admin`, from the token's `role` claim, where Neon's default for ordinary users is `authenticated`. The `banned` claim is checked on every request. Each Neon branch has its own auth environment.
+
+| Response | When |
+|---|---|
+| 401 `unauthenticated` / `invalid_token` | No token, or one that fails any check |
+| 403 `banned`, `email_unverified`, `disabled` | The account may not use the app |
+| 403 `waitlisted` | Signed in but not admitted. `GET /me` still answers, so the UI can show the waitlist. |
+| 404 | Another user's resource, or an admin endpoint for a non-admin |
+| 503 `auth_unavailable` | Sign-in isn't configured, or no keys could ever be loaded |
 
 ### Data separation
 
@@ -350,7 +358,7 @@ Google-only at launch. Roles are `user` and `admin`, from the token's `role` cla
 | LLM spend per month | $10 | Enrichment jobs enter `blocked_quota` |
 | Total users | 25 | New sign-ups see a waitlist message |
 | `processing_enabled` | true | Emergency stop |
-| `signups_enabled` | **false until the owner turns it on, M7 at the earliest** | Only allowed accounts can use the app |
+| `signups_enabled` | **false until the owner turns it on, M7 at the earliest** | Only allowlisted emails can use the app. Everyone else sees a waitlist message. |
 
 - **A submission** is pressing "process" on a batch. Editing, reviewing and exporting stay unlimited.
 - **Restored only on platform failure**, not when a user's file is unreadable.
@@ -504,6 +512,11 @@ The architecture assumes:
 | M0A | Add the UptimeRobot monitor | Done |
 | M0A | Add the Bedrock key to `backend/.env` | Done |
 | M0A | Choose LLM models (D2) | Done: gpt-oss-120b, Claude Haiku 4.5 |
+| M1, before merging | Approve deleting M0B test-run rows on `production` and `dev`, so migration `0003` can run | Done 2026-11-08 |
+| M1, before merging | Neon Auth settings on Render and Vercel, trust the Vercel URL in Neon Auth | Done 2026-11-08, by Claude through the MCP servers |
+| M1, before merging | Decide D27: turn off email-and-password sign-in | Done 2026-11-08: approved and turned off on `production` and `dev` |
+| Any time | Delete the now-empty `ADMIN_TOKEN` variable on Render | Pending |
+| M1, after merging | Sign in, then give your account the `admin` role in Neon Auth | Pending |
 | Before opening sign-ups | Create a Google OAuth client and publish the consent screen | Pending |
 
 ---

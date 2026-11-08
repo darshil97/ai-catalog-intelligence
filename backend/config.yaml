@@ -29,9 +29,52 @@ database:
 processing:
   enabled: ${PROCESSING_ENABLED:-true}
 
-# Temporary (M0B): protects the test-run endpoints until sign-in arrives in M1.
-admin:
-  token: ${ADMIN_TOKEN:-}
+# Neon Auth (managed Better Auth). Tokens are verified locally against cached public keys.
+auth:
+  # For example https://ep-xxx.neonauth.ap-southeast-2.aws.neon.tech/neondb/auth. Neon sets the
+  # token's issuer and audience to this URL's origin.
+  base_url: ${NEON_AUTH_BASE_URL:-}
+  verifier: neon_auth
+  algorithms: [EdDSA]
+  # Allowed clock difference between Neon and this server.
+  leeway_seconds: 30
+  jwks_timeout_seconds: 5
+  # Keys are refreshed after this long, or sooner when a token names an unknown key.
+  jwks_cache_seconds: 3600
+  # An unknown key triggers at most one refetch per interval, so forged tokens can't flood Neon.
+  jwks_min_refetch_seconds: 30
+  # A profile's status is rechecked in the database after this long. Bans arrive in the token.
+  profile_cache_seconds: 60
+  profile_cache_max_entries: 1000
+
+# Who may use the app.
+access:
+  # Off until the owner opens sign-ups (M7 at the earliest). While off, only allowlisted
+  # emails can use the app, and everyone else sees a waitlist message.
+  signups_enabled: ${SIGNUPS_ENABLED:-false}
+  # Comma-separated, compared case-insensitively. Allowlisted emails ignore the user cap.
+  allowlisted_emails: ${ACCESS_ALLOWLIST:-owner@example.com}
+  # New sign-ups beyond this many active users are waitlisted.
+  max_total_users: 25
+
+# Per-user POC limits. user_limits.overrides replaces any of these for one user, and an
+# override of null means unlimited.
+limits:
+  submissions_lifetime: 2
+  submissions_per_24_hours: 1
+  files_per_submission: 5
+  max_file_bytes: 10485760
+  max_submission_bytes: 26214400
+  max_pdf_pages: 10
+  max_images_per_submission: 25
+  max_products_per_submission: 5
+
+catalog:
+  # A batch and everything in it is purged this long after it was created.
+  retention_days: 30
+  max_name_length: 200
+  # Bounds list responses, so one request can't read an unbounded number of rows.
+  max_list_items: 500
 
 compute:
   # ec2 starts the instance. noop assumes you started worker.py yourself.
@@ -77,7 +120,7 @@ pipelines:
     - stage: noop
       job_type: noop_plan
 
-# Temporary (M0B): bounds for test runs.
+# Admin-only diagnostic runs of the no-op pipeline.
 test_runs:
   max_chunks: 20
   max_sleep_seconds: 900

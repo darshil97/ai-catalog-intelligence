@@ -63,8 +63,8 @@ jobs:
           backend=false
           worker=false
           if grep -q '^backend/' <<<"$files"; then backend=true; fi
-          # API-only and test changes don't need a worker deploy.
-          if grep '^backend/' <<<"$files" | grep -qvE '^backend/(app/api/|server\.py|tests/)'; then worker=true; fi
+          # API-only (app/api, app/auth, server.py) and test changes don't need a worker deploy.
+          if grep '^backend/' <<<"$files" | grep -qvE '^backend/(app/api/|app/auth/|server\.py|tests/)'; then worker=true; fi
           echo "backend=$backend" >> "$GITHUB_OUTPUT"
           echo "worker=$worker" >> "$GITHUB_OUTPUT"
           echo "backend=$backend worker=$worker"
