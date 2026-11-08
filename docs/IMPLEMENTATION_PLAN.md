@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Nothing below is implemented yet.** Status values: Not Started, In Progress, Completed.
+Each module's status is in the table below. Status values: Not Started, In Progress, Completed.
 
 Each module gets its own proposal and approval before work starts, and review after it ends. See the process in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#13-development-process).
 
@@ -10,7 +10,7 @@ Each module gets its own proposal and approval before work starts, and review af
 |---|---|---|---|
 | M0A | Foundation | — | Completed |
 | M0B | Processing platform | M0A | Completed |
-| M1 | Accounts, suppliers and batches | M0A | In Progress |
+| M1 | Accounts, suppliers and batches | M0A | Completed |
 | M2 | File ingestion and storage | M0B, M1 | Not Started |
 | M3 | Spreadsheet extraction | M2 | Not Started |
 | M4 | Document and image text extraction | M3 | Not Started |
@@ -114,7 +114,7 @@ Approved in [D10](DECISIONS.md#d10-module-sequencing):
 
 ## M1 Accounts, suppliers and batches
 
-**Status:** proposal approved by the owner on 2026-11-08. **Merged and deployed on 2026-11-08** (migration `0003` applied to `production` by CI). Live acceptance pending, and `dev` isn't migrated yet. See [Implementation notes](#m1-implementation-notes).
+**Status:** proposal approved by the owner on 2026-11-08. **Completed on 2026-11-08.** Merged and deployed, migration `0003` applied to `production` (by CI), `dev` and `test`, and live acceptance passed (owner, 2026-11-08). One open issue: no one can be an admin yet (see below). See [Implementation notes](#m1-implementation-notes).
 
 **Approved additions to the scope below:**
 - Migration `0003`: `user_profiles`, `user_limits`, `usage_ledger`, `suppliers`, `batches`. Adds foreign keys from `pipeline_runs.owner_user_id` and `jobs.owner_user_id` to `user_profiles`. Expand-only.
@@ -180,7 +180,9 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 
 **Fixed after the first deploy:** the frontend sent Better Auth's opaque session token instead of the JWT, so the API answered 401 (`malformed`) and sign-in looped back to the sign-in button. The proxy's cached `get-session` response carries no `set-auth-jwt` header. The frontend now fetches the JWT from `/token`.
 
-**After merging:** sign in once, then set your role to `admin` in Neon Auth (for example `UPDATE neon_auth."user" SET role = 'admin' WHERE email = '…'`) to keep test runs. Then run the live acceptance above.
+**Open issue: no one can be an admin yet (owner chose to leave it, 2026-11-08).** Neon Auth always issues `"role": "authenticated"` in its tokens, whatever `neon_auth."user".role` says, because Neon uses that claim to pick the database role for its Data API. So the token-based admin check never passes, and admin-only test runs return 404 for everyone. The proposed fix is to make `user_profiles.role` the source of truth, set in SQL and cached for 60 seconds like the rest of the profile. That needs a new decision. The owner's `neon_auth."user".role` was set to `admin` on `production` while this was being found, and is harmless.
+
+**Live acceptance (2026-11-08):** the owner signed in with Google on Vercel, created suppliers and batches, and confirmed a second account can't see them and a non-allowlisted account gets the waitlist message. `ADMIN_TOKEN` was deleted from Render.
 
 ---
 
