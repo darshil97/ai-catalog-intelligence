@@ -32,3 +32,13 @@ FROM usage_ledger
 WHERE id = %(entry_id)s AND user_id = %(user_id)s AND NOT is_restoration
 ON CONFLICT (restores_entry_id) WHERE restores_entry_id IS NOT NULL DO NOTHING
 RETURNING id;
+
+-- name: restore_run_submissions
+-- A run that failed on our side gives its submission back. Restored only once.
+INSERT INTO usage_ledger (user_id, kind, quantity, cost_usd, pipeline_run_id, is_restoration,
+                          restores_entry_id)
+SELECT user_id, kind, quantity, cost_usd, pipeline_run_id, true, id
+FROM usage_ledger
+WHERE pipeline_run_id = %(run_id)s AND kind = 'submission' AND NOT is_restoration
+ON CONFLICT (restores_entry_id) WHERE restores_entry_id IS NOT NULL DO NOTHING
+RETURNING id;

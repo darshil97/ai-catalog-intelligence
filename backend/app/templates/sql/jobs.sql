@@ -1,8 +1,8 @@
 -- Job queue queries. Each "-- name:" line starts a query. Values are always bound parameters.
 
 -- name: insert_run
-INSERT INTO pipeline_runs (pipeline, owner_user_id, request_id)
-VALUES (%(pipeline)s, %(owner)s, %(request_id)s)
+INSERT INTO pipeline_runs (pipeline, owner_user_id, batch_id, request_id)
+VALUES (%(pipeline)s, %(owner)s, %(batch_id)s, %(request_id)s)
 RETURNING id;
 
 -- name: insert_stage
@@ -50,9 +50,16 @@ WHERE j.id = next.id
 RETURNING j.*;
 
 -- name: mark_run_running
-UPDATE pipeline_runs
-SET status = 'running', started_at = now()
-WHERE id = %(run_id)s AND status = 'queued';
+-- A batch shows the state of its run.
+WITH run AS (
+    UPDATE pipeline_runs
+    SET status = 'running', started_at = now()
+    WHERE id = %(run_id)s AND status = 'queued'
+    RETURNING batch_id
+)
+UPDATE batches b SET status = 'processing', updated_at = now()
+FROM run
+WHERE b.id = run.batch_id;
 
 -- name: renew_lease
 UPDATE jobs
@@ -115,9 +122,17 @@ SELECT id, stage, job_type, payload FROM pipeline_stage_runs
 WHERE pipeline_run_id = %(run_id)s AND position = %(position)s;
 
 -- name: finish_run
-UPDATE pipeline_runs
-SET status = %(status)s, finished_at = now()
-WHERE id = %(run_id)s;
+WITH run AS (
+    UPDATE pipeline_runs
+    SET status = %(status)s, finished_at = now()
+    WHERE id = %(run_id)s
+    RETURNING batch_id
+)
+UPDATE batches b
+SET status = CASE WHEN %(status)s = 'succeeded' THEN 'completed' ELSE 'failed' END,
+    updated_at = now()
+FROM run
+WHERE b.id = run.batch_id;
 
 -- name: cancel_remaining_jobs
 UPDATE jobs

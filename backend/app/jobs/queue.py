@@ -24,6 +24,7 @@ from app.jobs.models import (
     RunStatus,
     StageSpec,
 )
+from app.usage import restore_run_submissions
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -72,8 +73,11 @@ def create_run(
     owner: str,
     request_id: str | None,
     settings: QueueSettings,
+    batch_id: UUID | None = None,
 ) -> UUID:
     """Create a pipeline run and queue the first job of its first stage.
+
+    A run with a batch keeps the batch's status in step with its own.
 
     Raises:
         psycopg.errors.UniqueViolation: if the owner already has an active run.
@@ -83,7 +87,7 @@ def create_run(
         raise ValueError(f"Pipeline {pipeline!r} has no stages")
     row = conn.execute(
         query("jobs", "insert_run"),
-        {"pipeline": pipeline, "owner": owner, "request_id": request_id},
+        {"pipeline": pipeline, "owner": owner, "batch_id": batch_id, "request_id": request_id},
     ).fetchone()
     assert row is not None  # noqa: S101
     run_id: UUID = row["id"]
@@ -356,6 +360,8 @@ def _record_chunk_result(
         conn.execute(query("jobs", "cancel_remaining_jobs"), {"run_id": run_id})
         conn.execute(query("jobs", "cancel_remaining_stages"), {"run_id": run_id})
         conn.execute(query("jobs", "finish_run"), {"run_id": run_id, "status": "failed"})
+        # Bad user files are rejected without failing a job, so a failed run is our failure.
+        restore_run_submissions(conn, run_id)
         return
 
     if stage["completed_chunks"] < stage["total_chunks"]:

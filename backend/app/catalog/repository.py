@@ -37,6 +37,10 @@ class SupplierHasBatchesError(CatalogError):
     """A supplier can't be deleted while it has batches."""
 
 
+class BatchBusyError(CatalogError):
+    """A batch can't be deleted while it's queued or processing."""
+
+
 def _is_duplicate_supplier_name(exc: psycopg.errors.UniqueViolation) -> bool:
     return exc.diag.constraint_name == _SUPPLIER_NAME_INDEX
 
@@ -192,15 +196,22 @@ def rename_batch(conn: Connection[Any], owner: str, batch_id: UUID, name: str) -
     return row
 
 
-def delete_batch(conn: Connection[Any], owner: str, batch_id: UUID) -> None:
+def delete_batch(conn: Connection[Any], owner: str, batch_id: UUID) -> list[str]:
     """Delete a batch and, through cascades, everything in it.
+
+    Returns:
+        The storage keys of its files, to delete once the transaction commits.
 
     Raises:
         NotFoundError: if the owner has no such batch.
+        BatchBusyError: if it's queued or processing.
     """
     row: Row | None = conn.execute(
         query("catalog", "delete_batch"), {"owner": owner, "batch_id": batch_id}
     ).fetchone()
     if row is None:
         raise NotFoundError(str(batch_id))
-    logger.info("Batch deleted: batch_id=%s owner=%s", batch_id, owner)
+    if not row["deleted"]:
+        raise BatchBusyError(str(batch_id))
+    logger.info("Batch deleted: batch_id=%s owner=%s files=%d", batch_id, owner, len(row["keys"]))
+    return list(row["keys"])

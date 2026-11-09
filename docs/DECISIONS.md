@@ -566,5 +566,41 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 - *`--legacy-peer-deps`:* hides real peer conflicts for every future install.
 - *Downgrade to TypeScript 5:* churn for a small number of types.
 
-**Consequences:** a backend schema change must update `types.ts` in the same change. Revisit when M2 adds more endpoints.
+**Consequences:** a backend schema change must update `types.ts` in the same change. Revisited in M2: still hand-written, now covering files and runs.
 
+
+---
+
+## D29: One S3 bucket, one prefix per environment
+
+**Status:** Approved by the owner on 2026-11-09 (M2).
+
+**Decision:** everything the project stores lives in the bucket `ai-catalog-intelligence` (Sydney), under `prod/`, `dev/` and `test/`. Keys are `{env}/raw/{owner}/{batch}/{file}` for uploads and `{env}/derived/{owner}/{batch}/{file}` for files the worker extracts. Keys never contain user-supplied names. IAM keeps the environments apart: `catalog-api` and the worker role can only reach `prod/`, and the `catalog-dev` user only `dev/` and `test/`.
+
+**Alternatives considered:**
+- *A bucket per environment:* cleaner isolation, but more resources for a POC, and the owner asked for one bucket.
+
+**Consequences:** the bucket's lifecycle rule (expire after 31 days) applies to every environment. `S3_PREFIX` must be `prod` on Render and EC2; the default `dev` would be refused by IAM there, so a missed setting fails loudly rather than mixing data.
+
+---
+
+## D30: Uploads checked by hash in the browser and by S3
+
+**Status:** Approved by the owner on 2026-11-09 (M2).
+
+**Decision:** the browser computes each file's SHA-256 before registering it. The presigned form POST pins the key, the exact size, the content type and the checksum, so S3 refuses anything else. The API confirms size and checksum with HeadObject on completion, and the worker hashes the file again when it downloads it. A batch refuses the same content twice (409, `duplicate_file`).
+
+**Alternatives considered:**
+- *Hash only in the worker:* duplicates would be found after the user had already submitted, and a corrupted upload would only surface during processing.
+
+**Consequences:** the API never handles file bytes. If S3 ever returns no checksum, completion still accepts the upload and the worker's hash check is the backstop.
+
+---
+
+## D31: A batch is processed once, unless processing fails on our side
+
+**Status:** Approved by the owner on 2026-11-09 (M2).
+
+**Decision:** `POST /batches/{id}/process` charges one submission and works only on `draft` or `failed` batches. Bad files are rejected one by one with a reason and never fail the run, so a failed run always means a platform failure: its submission is restored automatically and the batch can be processed again. Files can only be added or removed while a batch is `draft` or `failed`.
+
+**Consequences:** a user can't reprocess a completed batch to pick up changes; they create a new batch. Retries recheck every file from scratch.

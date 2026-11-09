@@ -85,6 +85,20 @@ RETURNING b.id, b.supplier_id, s.name AS supplier_name, b.name, b.status, b.expi
           b.created_at, b.updated_at;
 
 -- name: delete_batch
-DELETE FROM batches
-WHERE id = %(batch_id)s AND owner_user_id = %(owner)s
-RETURNING id;
+-- Refuses a batch that is queued or processing. Returns its stored keys so the caller can delete
+-- the objects; the subquery sees the files as they were before the cascade.
+WITH target AS (
+    SELECT id, status FROM batches
+    WHERE id = %(batch_id)s AND owner_user_id = %(owner)s
+    FOR UPDATE
+),
+deleted AS (
+    DELETE FROM batches b
+    USING target t
+    WHERE b.id = t.id AND t.status NOT IN ('queued', 'processing')
+    RETURNING b.id
+)
+SELECT t.status, (SELECT count(*) FROM deleted) AS deleted,
+       ARRAY(SELECT f.s3_key FROM source_files f
+             WHERE f.batch_id = t.id AND f.s3_key IS NOT NULL) AS keys
+FROM target t;

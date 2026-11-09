@@ -48,6 +48,7 @@ def main() -> None:
         "WORKER_INSTANCE_ID": _instance_metadata("instance-id"),
         "WORKER_POWER_CONTROLLER": "os_shutdown",
         "WORKER_HEARTBEAT_FILE": "/run/catalog-worker/heartbeat",
+        "S3_PREFIX": "prod",
     }
     fd = os.open(ENV_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as env_file:

@@ -42,6 +42,10 @@ Set under the service's **Environment** tab. Saving redeploys the service.
 | `NEON_AUTH_BASE_URL` | Neon Auth URL of the `production` branch, such as `https://ep-xxx.neonauth.ap-southeast-2.aws.neon.tech/neondb/auth`. The API derives the JWKS URL, issuer and audience from it. | No |
 | `ACCESS_ALLOWLIST` | Optional. Comma-separated emails always let in. Defaults to the owner's address in `config.yaml`. | No |
 | `SIGNUPS_ENABLED` | Optional, default `false`. Only the owner turns it on, M7 at the earliest. | No |
+| `S3_PREFIX` | `prod`. The default, `dev`, is refused by `catalog-api`'s permissions (D29). | No |
+| `S3_BUCKET` | Optional. Defaults to `ai-catalog-intelligence`. | No |
+
+The `catalog-api` access key (already set as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`) also signs uploads to the bucket.
 
 Render sets `PORT` and `RENDER_GIT_COMMIT` itself. `/health` reports the second as `code_sha`.
 
@@ -118,6 +122,14 @@ conda activate ai-catalog
 ```bash
 UV_PROJECT_ENVIRONMENT="$CONDA_PREFIX" uv sync --frozen --inexact --extra api --extra migrate
 ```
+
+## File storage (M2)
+
+One bucket, `ai-catalog-intelligence` in Sydney, created by the `catalog-worker` stack. Everything sits under `prod/`, `dev/` or `test/` (D29). The bucket is private and encrypted, accepts browser form uploads from the Vercel URL and `http://localhost:3000`, and deletes every object after 31 days.
+
+- **Render and EC2:** `S3_PREFIX=prod`. The worker gets it from `render_env.py`.
+- **Local:** create an access key for the `catalog-dev` IAM user in the console and put it in `backend/.env` as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (no AWS CLI needed). That user can reach only `dev/` and `test/`.
+- **Live storage check:** `LIVE_STORAGE_TEST=1 uv run pytest tests/test_storage_live.py` proves S3 refuses an upload whose size or checksum differs from its link.
 
 ## Database migrations
 

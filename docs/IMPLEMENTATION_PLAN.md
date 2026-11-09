@@ -11,7 +11,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | M0A | Foundation | — | Completed |
 | M0B | Processing platform | M0A | Completed |
 | M1 | Accounts, suppliers and batches | M0A | Completed |
-| M2 | File ingestion and storage | M0B, M1 | Not Started |
+| M2 | File ingestion and storage | M0B, M1 | In Progress |
 | M3 | Spreadsheet extraction | M2 | Not Started |
 | M4 | Document and image text extraction | M3 | Not Started |
 | M5A | Image processing | M2, M0B | Not Started |
@@ -205,6 +205,16 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 - Abandoned uploads.
 - Over-limit files and over-limit totals.
 - Presigning another user's batch returns 404.
+
+**Approved decisions (2026-11-09):** one bucket, `ai-catalog-intelligence`, with `prod/`, `dev/` and `test/` prefixes (D29); browser hashing checked by S3 (D30); process once, retry only after a platform failure (D31); ZIP limits of 200 entries, 100 MB total, 10 MB per entry and 100:1 compression (in `config.yaml`); infrastructure applied by Claude through the connectors.
+
+**Implementation (in progress)**
+- Migration `0004`: `source_files` (with ZIP entries as child rows), unique content per batch, and batch statuses `queued`, `processing`, `completed` and `failed`. A run's batch follows its status, and a failed run restores its submission.
+- API: `POST/GET /batches/{id}/files`, `POST /files/{id}/complete`, `DELETE /files/{id}`, `POST /batches/{id}/process`, `GET /batches/{id}/run`. Deleting a batch is refused while it's processing, and removes its objects.
+- `app/storage` (S3 and in-memory backends), `app/files` (registration, limits, submission), `app/ingest` (file-kind registry, signatures, safe ZIP expansion).
+- Worker pipeline `ingest`: `ingest_plan`, one `ingest_file` per file, then `ingest_finalize` (image limit, run counts).
+- Frontend: a batch page with drag-and-drop uploads, file statuses and reasons, Process, and run progress.
+- CloudFormation: bucket, S3 gateway endpoint, IAM for the API, worker and a `catalog-dev` user.
 
 ---
 
