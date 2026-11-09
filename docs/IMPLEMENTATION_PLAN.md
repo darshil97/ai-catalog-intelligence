@@ -11,7 +11,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | M0A | Foundation | — | Completed |
 | M0B | Processing platform | M0A | Completed |
 | M1 | Accounts, suppliers and batches | M0A | Completed |
-| M2 | File ingestion and storage | M0B, M1 | In Progress |
+| M2 | File ingestion and storage | M0B, M1 | Completed |
 | M3 | Spreadsheet extraction | M2 | Not Started |
 | M4 | Document and image text extraction | M3 | Not Started |
 | M5A | Image processing | M2, M0B | Not Started |
@@ -188,6 +188,8 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 
 ## M2 File ingestion and storage
 
+**Status:** proposal approved by the owner on 2026-11-09. **Completed on 2026-11-09.** Merged and deployed, migration `0004` applied to `production` (by CI) and `test`, and live acceptance passed (owner, 2026-11-09). `dev` is still at `0003`. See the implementation notes below.
+
 **Scope**
 - Presigned uploads directly to S3, and completion checks.
 - File records, type and hash checks.
@@ -208,13 +210,17 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 
 **Approved decisions (2026-11-09):** one bucket, `ai-catalog-intelligence`, with `prod/`, `dev/` and `test/` prefixes (D29); browser hashing checked by S3 (D30); process once, retry only after a platform failure (D31); ZIP limits of 200 entries, 100 MB total, 10 MB per entry and 100:1 compression (in `config.yaml`); infrastructure applied by Claude through the connectors.
 
-**Implementation (in progress)**
+**Implementation notes**
 - Migration `0004`: `source_files` (with ZIP entries as child rows), unique content per batch, and batch statuses `queued`, `processing`, `completed` and `failed`. A run's batch follows its status, and a failed run restores its submission.
 - API: `POST/GET /batches/{id}/files`, `POST /files/{id}/complete`, `DELETE /files/{id}`, `POST /batches/{id}/process`, `GET /batches/{id}/run`. Deleting a batch is refused while it's processing, and removes its objects.
 - `app/storage` (S3 and in-memory backends), `app/files` (registration, limits, submission), `app/ingest` (file-kind registry, signatures, safe ZIP expansion).
 - Worker pipeline `ingest`: `ingest_plan`, one `ingest_file` per file, then `ingest_finalize` (image limit, run counts).
 - Frontend: a batch page with drag-and-drop uploads, file statuses and reasons, Process, and run progress.
 - CloudFormation: bucket, S3 gateway endpoint, IAM for the API, worker and a `catalog-dev` user.
+- Verified against real S3 (`tests/test_storage_live.py`): the bucket refuses a form upload whose size or SHA-256 differs from its link.
+- Fix after release: Process and Delete asked with `window.confirm`, which the desktop app's browser pane blocks silently, so they did nothing. They now confirm on the page (`ConfirmButton`).
+
+**Live acceptance (2026-11-09):** the owner uploaded four JPEGs on Vercel and processed the batch. The EC2 worker checked all four within seconds and kept them, and the batch showed completed. Other file types, ZIPs and rejections are covered by the automated tests, not yet by a live run.
 
 ---
 
