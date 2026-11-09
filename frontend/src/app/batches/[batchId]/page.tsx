@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 
 import { RequireActive } from "@/components/Account";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { ApiError, api } from "@/lib/api";
 import type {
   Batch,
@@ -131,13 +132,6 @@ function BatchDetail() {
   }
 
   async function process() {
-    const remaining = submissionsLeft(me.data);
-    const note =
-      remaining === null
-        ? ""
-        : ` You have ${remaining} submission${remaining === 1 ? "" : "s"} left.`;
-    if (!window.confirm(`Process this batch? This uses one submission.${note}`))
-      return;
     setSubmitting(true);
     setActionError(null);
     try {
@@ -189,18 +183,20 @@ function BatchDetail() {
 
       {editable && (
         <div className="stack">
-          <button
-            type="button"
+          <ConfirmButton
             className="button primary"
             disabled={uploading || submitting || uploadedCount === 0}
-            onClick={process}
-          >
-            {submitting
-              ? "Starting…"
-              : batch.data.status === "failed"
-                ? "Try processing again"
-                : "Process batch"}
-          </button>
+            label={
+              submitting
+                ? "Starting…"
+                : batch.data.status === "failed"
+                  ? "Try processing again"
+                  : "Process batch"
+            }
+            question={processQuestion(me.data)}
+            confirmLabel="Process"
+            onConfirm={process}
+          />
           <p className="muted">{usageText(me.data)}</p>
         </div>
       )}
@@ -219,6 +215,12 @@ function submissionsLeft(me: Me | null): number | null {
     .filter(([limit]) => limit !== null && limit !== undefined)
     .map(([limit, used]) => Math.max(0, (limit as number) - (used ?? 0)));
   return left.length ? Math.min(...left) : null;
+}
+
+function processQuestion(me: Me | null): string {
+  const left = submissionsLeft(me);
+  const note = left === null ? "" : ` You have ${left} left.`;
+  return `This uses one submission.${note}`;
 }
 
 function usageText(me: Me | null): string {

@@ -272,3 +272,10 @@ a {
   margin: 0;
   font-size: 0.875rem;
 }
+
+.confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}

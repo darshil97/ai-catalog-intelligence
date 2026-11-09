@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { RequireActive } from "@/components/Account";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { NameForm } from "@/components/NameForm";
 import { ApiError, api, jsonBody } from "@/lib/api";
 import type { Batch, BatchList, Supplier } from "@/lib/types";
@@ -49,7 +50,6 @@ function SupplierDetail() {
   }
 
   async function remove() {
-    if (!window.confirm("Delete this supplier?")) return;
     try {
       await api<void>(`/suppliers/${supplierId}`, { method: "DELETE" });
       router.push("/suppliers");
@@ -100,9 +100,13 @@ function SupplierDetail() {
           >
             Rename
           </button>
-          <button type="button" className="button danger" onClick={remove}>
-            Delete
-          </button>
+          <ConfirmButton
+            className="button danger"
+            label="Delete"
+            question="Delete this supplier?"
+            confirmLabel="Delete"
+            onConfirm={remove}
+          />
         </div>
       )}
       {error && (
@@ -143,7 +147,6 @@ function BatchRow({ batch, onChange }: { batch: Batch; onChange: () => void }) {
   }
 
   async function remove() {
-    if (!window.confirm(`Delete batch "${batch.name}"?`)) return;
     try {
       await api<void>(`/batches/${batch.id}`, { method: "DELETE" });
       onChange();
@@ -187,9 +190,13 @@ function BatchRow({ batch, onChange }: { batch: Batch; onChange: () => void }) {
         >
           Rename
         </button>
-        <button type="button" className="button link danger" onClick={remove}>
-          Delete
-        </button>
+        <ConfirmButton
+          className="button link danger"
+          label="Delete"
+          question={`Delete batch "${batch.name}" and its files?`}
+          confirmLabel="Delete"
+          onConfirm={remove}
+        />
       </span>
       {error && (
         <p className="error" role="alert">
