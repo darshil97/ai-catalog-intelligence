@@ -5,6 +5,8 @@ description = "API and processing worker for AI Catalog Intelligence"
 requires-python = ">=3.12,<3.13"
 # Shared by the API and worker. Keep this light: the API runs in 512 MB.
 dependencies = [
+    # Loaded lazily by both: the API presigns uploads, and the worker reads and writes files.
+    "boto3>=1.43,<2",
     "psycopg[binary,pool]>=3.3,<4",
     "pydantic>=2.14,<3",
     "python-dotenv>=1.2,<2",
@@ -13,13 +15,15 @@ dependencies = [
 
 [project.optional-dependencies]
 api = [
-    "boto3>=1.43,<2",
     "fastapi>=0.162,<1",
     "pyjwt[crypto]>=2.10,<3",
     "uvicorn>=0.54,<1",
 ]
 # Heavy processing packages (torch, OpenCV, OCR) belong here, never in `api`.
-worker = []
+worker = [
+    "pillow>=13.0,<14",
+    "pypdf>=7.0,<8",
+]
 migrate = [
     "alembic>=1.20,<2",
     "sqlalchemy>=2.1,<3",
@@ -52,7 +56,7 @@ ignore = ["G201"]
 
 [tool.ruff.lint.isort]
 # Tests import shared helpers from conftest, which pytest puts on the path.
-known-first-party = ["app", "conftest"]
+known-first-party = ["app", "conftest", "samples"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S"]

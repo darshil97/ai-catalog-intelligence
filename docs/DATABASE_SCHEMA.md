@@ -111,21 +111,32 @@ Append-only. A restoration is a new row, never an update.
 
 ### `source_files`
 
+Created in migration `0004` (M2). An uploaded file, or a file found inside an uploaded ZIP.
+
 | Column | Type | Notes |
 |---|---|---|
-| `id` | UUID PK | |
-| `batch_id` | UUID FK | |
-| `owner_user_id` | TEXT FK | |
-| `s3_key` | TEXT NOT NULL | Prefixed by owner |
-| `original_name` | TEXT NOT NULL | |
-| `kind` | TEXT NOT NULL | `spreadsheet`, `pdf`, `image`, `zip` |
+| `id` | UUID PK | ZIP entries get an ID derived from the archive and member, so a rerun replaces them |
+| `batch_id` | UUID FK | Cascade |
+| `owner_user_id` | TEXT FK | Cascade |
+| `parent_file_id` | UUID FK self | The ZIP it came from. Cascade |
+| `archive_member` | TEXT | Path inside that ZIP. Set exactly when `parent_file_id` is |
+| `position`, `member_index` | INTEGER | Upload order, then order inside the ZIP. The image limit keeps the first ones |
+| `s3_key` | TEXT UNIQUE | `{env}/raw/...` or `{env}/derived/...` (D29). Null only for a rejected ZIP entry, which isn't stored |
+| `original_name` | TEXT NOT NULL | Cleaned: no folders or control characters. Never used in keys |
+| `extension` | TEXT NOT NULL | Lowercase, without the dot |
+| `kind` | TEXT NOT NULL | `spreadsheet`, `pdf`, `image`, `zip`, or `other` (an unsupported ZIP entry) |
+| `content_type` | TEXT NOT NULL | Fixed per extension by the upload policy |
 | `size_bytes` | BIGINT NOT NULL | |
-| `sha256` | TEXT | Set after the completion check |
-| `status` | TEXT NOT NULL | `pending_upload`, `uploaded`, `rejected`, `processed` |
-| `rejection_reason` | TEXT | |
-| `created_at` | TIMESTAMPTZ | |
+| `sha256` | TEXT | Hex. From the browser, checked by S3, the API and the worker (D30) |
+| `status` | TEXT NOT NULL | `pending_upload`, `uploaded`, `ingested`, `rejected` |
+| `rejection_reason`, `rejection_message` | TEXT | Set exactly when rejected |
+| `details` | JSONB | What the checks found, such as page count, image size, or ZIP entry counts |
+| `upload_expires_at` | TIMESTAMPTZ | An unfinished upload past this is treated as rejected |
+| `created_at`, `updated_at` | TIMESTAMPTZ | |
 
-**Constraint:** `UNIQUE(batch_id, sha256)`.
+**Constraints:** `UNIQUE(batch_id, sha256) WHERE status <> 'rejected'`; `UNIQUE(parent_file_id, archive_member)` for ZIP entries.
+
+`batches.status` gained `queued`, `processing`, `completed` and `failed` in `0004`. A run's status updates its batch.
 
 ### `source_records`
 

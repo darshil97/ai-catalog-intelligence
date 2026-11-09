@@ -40,7 +40,10 @@ function SupplierDetail() {
       : (loadError?.message ?? null));
 
   async function rename(name: string) {
-    await api<Supplier>(`/suppliers/${supplierId}`, jsonBody("PATCH", { name }));
+    await api<Supplier>(
+      `/suppliers/${supplierId}`,
+      jsonBody("PATCH", { name }),
+    );
     setRenaming(false);
     reload();
   }
@@ -52,13 +55,18 @@ function SupplierDetail() {
       router.push("/suppliers");
     } catch (caught) {
       setActionError(
-        caught instanceof ApiError ? caught.message : "Couldn't delete this supplier.",
+        caught instanceof ApiError
+          ? caught.message
+          : "Couldn't delete this supplier.",
       );
     }
   }
 
   async function createBatch(name: string) {
-    await api<Batch>(`/suppliers/${supplierId}/batches`, jsonBody("POST", { name }));
+    await api<Batch>(
+      `/suppliers/${supplierId}/batches`,
+      jsonBody("POST", { name }),
+    );
     reload();
   }
 
@@ -85,7 +93,11 @@ function SupplierDetail() {
       ) : (
         <div className="title-row">
           <h1>{data.supplier_name}</h1>
-          <button type="button" className="button" onClick={() => setRenaming(true)}>
+          <button
+            type="button"
+            className="button"
+            onClick={() => setRenaming(true)}
+          >
             Rename
           </button>
           <button type="button" className="button danger" onClick={remove}>
@@ -100,9 +112,15 @@ function SupplierDetail() {
       )}
 
       <h2>Batches</h2>
-      <NameForm label="New batch name" submitLabel="Add batch" onSubmit={createBatch} />
+      <NameForm
+        label="New batch name"
+        submitLabel="Add batch"
+        onSubmit={createBatch}
+      />
       {data.items.length === 0 ? (
-        <p className="muted">No batches yet. A batch holds the files you upload together.</p>
+        <p className="muted">
+          No batches yet. A batch holds the files you upload together.
+        </p>
       ) : (
         <ul className="list">
           {data.items.map((batch) => (
@@ -130,7 +148,11 @@ function BatchRow({ batch, onChange }: { batch: Batch; onChange: () => void }) {
       await api<void>(`/batches/${batch.id}`, { method: "DELETE" });
       onChange();
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "Couldn't delete this batch.");
+      setError(
+        caught instanceof ApiError
+          ? caught.message
+          : "Couldn't delete this batch.",
+      );
     }
   }
 
@@ -151,11 +173,18 @@ function BatchRow({ batch, onChange }: { batch: Batch; onChange: () => void }) {
   return (
     <li>
       <span>
-        {batch.name} <span className="badge">{batch.status}</span>
+        <Link href={`/batches/${batch.id}`}>{batch.name}</Link>{" "}
+        <span className="badge">{batch.status}</span>
       </span>
-      <span className="muted">Deleted on {new Date(batch.expires_at).toLocaleDateString()}</span>
+      <span className="muted">
+        Deleted on {new Date(batch.expires_at).toLocaleDateString()}
+      </span>
       <span className="actions">
-        <button type="button" className="button link" onClick={() => setRenaming(true)}>
+        <button
+          type="button"
+          className="button link"
+          onClick={() => setRenaming(true)}
+        >
           Rename
         </button>
         <button type="button" className="button link danger" onClick={remove}>

@@ -150,3 +150,15 @@ def restore_entry(conn: Connection[Any], user_id: str, entry_id: UUID) -> UUID |
     restoration_id: UUID = row["id"]
     logger.info("Usage restored: user_id=%s entry_id=%s", user_id, entry_id)
     return restoration_id
+
+
+def restore_run_submissions(conn: Connection[Any], run_id: UUID) -> int:
+    """Give back the submission a failed run charged. Safe to call more than once.
+
+    Returns:
+        How many entries were restored: 0 or 1.
+    """
+    rows = conn.execute(query("usage", "restore_run_submissions"), {"run_id": run_id}).fetchall()
+    if rows:
+        logger.info("Submission restored after a failed run: run_id=%s", run_id)
+    return len(rows)

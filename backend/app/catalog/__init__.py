@@ -1,6 +1,7 @@
 """Catalog structure: suppliers and batches, shared by the API and worker."""
 
 from app.catalog.repository import (
+    BatchBusyError,
     CatalogError,
     DuplicateNameError,
     NotFoundError,
@@ -18,6 +19,7 @@ from app.catalog.repository import (
 )
 
 __all__ = [
+    "BatchBusyError",
     "CatalogError",
     "DuplicateNameError",
     "NotFoundError",

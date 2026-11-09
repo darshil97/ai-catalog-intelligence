@@ -76,6 +76,48 @@ catalog:
   # Bounds list responses, so one request can't read an unbounded number of rows.
   max_list_items: 500
 
+# Everything this project stores lives in one bucket, under one prefix per environment:
+# prod/ (Render and EC2), dev/ (local development) and test/ (the live storage check).
+storage:
+  # s3, or memory for tests.
+  backend: ${STORAGE_BACKEND:-s3}
+  bucket: ${S3_BUCKET:-ai-catalog-intelligence}
+  prefix: ${S3_PREFIX:-dev}
+  region: ${AWS_REGION:-ap-southeast-2}
+  connect_timeout_seconds: 5
+  read_timeout_seconds: 30
+
+uploads:
+  # How long a browser has to finish an upload. Long enough for 10 MB on a slow connection.
+  upload_url_seconds: 600
+  max_original_name_length: 255
+  # Supported extensions. The content type is fixed by the upload link, whatever the browser
+  # claims, and the worker checks the file's contents match.
+  types:
+    csv: { kind: spreadsheet, content_type: text/csv }
+    xlsx: { kind: spreadsheet, content_type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet }
+    pdf: { kind: pdf, content_type: application/pdf }
+    jpg: { kind: image, content_type: image/jpeg }
+    jpeg: { kind: image, content_type: image/jpeg }
+    png: { kind: image, content_type: image/png }
+    webp: { kind: image, content_type: image/webp }
+    zip: { kind: zip, content_type: application/zip }
+
+# Checks the worker applies to each file. Per-user limits (pages, images) are under limits.
+ingest:
+  zip_max_entries: 200
+  zip_max_total_bytes: 104857600
+  zip_max_entry_bytes: 10485760
+  # Uncompressed size divided by compressed size, per entry. Real files rarely pass 20.
+  zip_max_ratio: 100
+  # The ratio applies only to entries at least this big, since tiny repetitive files compress
+  # far better than 100:1 and are harmless.
+  zip_ratio_min_bytes: 1048576
+  # Pillow refuses images with more pixels than this (image bombs).
+  max_image_pixels: 50000000
+  # How much of a CSV is read to check it's text.
+  csv_sniff_bytes: 65536
+
 compute:
   # ec2 starts the instance. noop assumes you started worker.py yourself.
   worker_controller: ${WORKER_CONTROLLER:-noop}
@@ -119,6 +161,12 @@ pipelines:
   noop:
     - stage: noop
       job_type: noop_plan
+  # A batch's files are checked one job per file, then the image limit is applied across them.
+  ingest:
+    - stage: ingest
+      job_type: ingest_plan
+    - stage: finalize
+      job_type: ingest_finalize
 
 # Admin-only diagnostic runs of the no-op pipeline.
 test_runs:

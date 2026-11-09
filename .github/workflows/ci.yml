@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: uv sync --frozen --python 3.12 --extra api --extra migrate
+      - run: uv sync --frozen --python 3.12 --extra api --extra migrate --extra worker
       - name: Lint
         run: uv run ruff check .
       - name: Format

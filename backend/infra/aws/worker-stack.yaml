@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: AI Catalog Intelligence worker. One on-demand EC2 instance, with no inbound access.
+Description: AI Catalog Intelligence. One on-demand EC2 worker with no inbound access, and the project's S3 bucket.
 
 # Create secrets first, because the instance reads them on first boot:
 #   /catalog/prod/worker/database_url  (SecureString)
@@ -29,8 +29,85 @@ Parameters:
   RepoSshUrl:
     Type: String
     Default: git@github.com:darshil97/ai-catalog-intelligence.git
+  BucketName:
+    # Everything the project stores, under prod/, dev/ and test/.
+    Type: String
+    Default: ai-catalog-intelligence
+  RouteTableId:
+    # The worker subnet's route table, for the S3 gateway endpoint.
+    Type: String
+    Default: rtb-0f413aa9fdba09f79
+  FrontendOrigin:
+    Type: String
+    Default: https://ai-catalog-intelligence.vercel.app
 
 Resources:
+  # Private, encrypted, and emptied after 31 days: one day past the 30-day retention, as a
+  # backstop for anything the app fails to delete. Kept if the stack is ever deleted.
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref BucketName
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+            BucketKeyEnabled: true
+      # Browsers upload straight to the bucket with presigned form posts.
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [POST]
+            AllowedOrigins:
+              - !Ref FrontendOrigin
+              - http://localhost:3000
+            AllowedHeaders: ["*"]
+            MaxAge: 3000
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-after-retention
+            Status: Enabled
+            ExpirationInDays: 31
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Bucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt Bucket.Arn
+              - !Sub ${Bucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
+
+  # Free. The worker's S3 traffic stays inside AWS instead of going out through the internet.
+  S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Gateway
+      VpcId: !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      RouteTableIds:
+        - !Ref RouteTableId
+
   WorkerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -66,6 +143,19 @@ Resources:
                 Condition:
                   StringEquals:
                     kms:ViaService: !Sub ssm.${AWS::Region}.amazonaws.com
+        # Reads uploads and writes extracted files, in production only.
+        - PolicyName: worker-files
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  - !Sub ${Bucket.Arn}/prod/raw/*
+                  - !Sub ${Bucket.Arn}/prod/derived/*
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub ${Bucket.Arn}/prod/derived/*
 
   WorkerInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -154,6 +244,41 @@ Resources:
                 # AWS doesn't support limiting this action to one instance.
                 Action: ec2:DescribeInstances
                 Resource: "*"
+        # Signs upload links, checks finished uploads, and deletes files with their batch.
+        - PolicyName: api-files
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: !Sub ${Bucket.Arn}/prod/raw/*
+              - Effect: Allow
+                Action: s3:DeleteObject
+                Resource:
+                  - !Sub ${Bucket.Arn}/prod/raw/*
+                  - !Sub ${Bucket.Arn}/prod/derived/*
+
+  # For local development and the live storage test. It can't touch prod/. Create its access
+  # key in the console and keep it in a local AWS profile only.
+  DevUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: catalog-dev
+      Policies:
+        - PolicyName: dev-files
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub ${Bucket.Arn}/dev/*
+                  - !Sub ${Bucket.Arn}/test/*
 
   # The only command GitHub can run on the instance. It accepts nothing but a full commit SHA,
   # checks that commit is on main, and runs the deploy script from that commit.
@@ -232,3 +357,9 @@ Outputs:
   DeployUserName:
     Description: Create an access key for this user, and store it in GitHub.
     Value: !Ref DeployUser
+  ProjectBucket:
+    Description: The project's bucket. Set as S3_BUCKET if it differs from the default.
+    Value: !Ref Bucket
+  DevUserName:
+    Description: Create an access key for local development, kept in a local AWS profile.
+    Value: !Ref DevUser

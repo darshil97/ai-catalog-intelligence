@@ -44,6 +44,9 @@ ALLOWLISTED_EMAIL = "owner@example.com"
 os.environ["NEON_AUTH_BASE_URL"] = AUTH_BASE_URL
 os.environ["ACCESS_ALLOWLIST"] = ALLOWLISTED_EMAIL
 os.environ["SIGNUPS_ENABLED"] = "false"
+# Storage stays in memory. The live check in test_storage_live.py opts in to S3 explicitly.
+os.environ["STORAGE_BACKEND"] = "memory"
+os.environ["S3_PREFIX"] = "test"
 
 import subprocess  # noqa: E402
 import sys  # noqa: E402
@@ -63,6 +66,8 @@ from app.auth import get_verifier, profile_cache  # noqa: E402
 from app.auth.jwks import JwksCache  # noqa: E402
 from app.config import get_config  # noqa: E402
 from app.db import close_pool, get_pool  # noqa: E402
+from app.storage import get_object_store  # noqa: E402
+from app.storage.backends.memory import MemoryObjectStore  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -173,6 +178,16 @@ def ensure_user(
                 (user_id, psycopg.types.json.Jsonb(overrides)),
             )
     return user_id
+
+
+@pytest.fixture
+def store() -> Iterator[MemoryObjectStore]:
+    """The in-memory object store, emptied before and after each test."""
+    memory = get_object_store()
+    assert isinstance(memory, MemoryObjectStore)
+    memory.clear()
+    yield memory
+    memory.clear()
 
 
 @pytest.fixture

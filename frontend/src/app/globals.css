@@ -241,3 +241,34 @@ a {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+.drop-zone {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 1rem;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.drop-zone p {
+  margin: 0;
+}
+
+.drop-zone.over {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.list li.child {
+  padding-left: 1.5rem;
+}
+
+.file-reason {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.875rem;
+}

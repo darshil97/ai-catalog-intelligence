@@ -11,6 +11,7 @@ from app import catalog
 from app.api.services.common import database, http_error, not_found
 from app.auth import Profile
 from app.config import get_catalog_config
+from app.storage import StorageError, get_object_store
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -129,9 +130,23 @@ def rename_batch(profile: Profile, batch_id: UUID, name: str) -> dict[str, Any]:
 
 
 def delete_batch(profile: Profile, batch_id: UUID) -> None:
-    """Delete a batch, or 404."""
+    """Delete a batch and its stored files.
+
+    Raises:
+        HTTPException: 404 if missing, or 409 while it's queued or processing.
+    """
     try:
         with database("delete_batch") as conn:
-            catalog.delete_batch(conn, profile.user_id, batch_id)
+            keys = catalog.delete_batch(conn, profile.user_id, batch_id)
     except catalog.NotFoundError:
         not_found()
+    except catalog.BatchBusyError as exc:
+        logger.info("Batch delete refused: reason=busy batch_id=%s", batch_id)
+        raise http_error(
+            409, "batch_busy", "This batch is being processed. Delete it once it finishes."
+        ) from exc
+    # The rows are gone, so a failure here only leaves objects for the bucket's expiry rule.
+    try:
+        get_object_store().delete(keys) if keys else None
+    except StorageError:
+        logger.warning("Stored objects left for expiry: batch_id=%s count=%d", batch_id, len(keys))

@@ -190,3 +190,42 @@ def get_pipeline_config(name: str) -> list[dict[str, Any]]:
 def get_test_run_config() -> dict[str, int]:
     """Return admin test-run bounds. Keys: max_chunks, max_sleep_seconds."""
     return dict(get_config()["test_runs"])
+
+
+def get_storage_config() -> dict[str, Any]:
+    """Return object storage settings.
+
+    Keys: backend, bucket, prefix (no slashes at either end), region,
+    connect_timeout_seconds, read_timeout_seconds.
+
+    Raises:
+        ValueError: if the prefix is empty, since every key must sit under an environment.
+    """
+    section = dict(get_config()["storage"])
+    section["prefix"] = str(section["prefix"]).strip().strip("/")
+    if not section["prefix"]:
+        raise ValueError("storage.prefix is empty; set S3_PREFIX to prod, dev or test")
+    return section
+
+
+def get_uploads_config() -> dict[str, Any]:
+    """Return upload settings.
+
+    Keys: upload_url_seconds, max_original_name_length, types (extension to a dict with keys
+    kind and content_type).
+    """
+    section = get_config()["uploads"]
+    return {
+        "upload_url_seconds": int(section["upload_url_seconds"]),
+        "max_original_name_length": int(section["max_original_name_length"]),
+        "types": {ext.lower(): dict(spec) for ext, spec in section["types"].items()},
+    }
+
+
+def get_ingest_config() -> dict[str, int]:
+    """Return the worker's file checks.
+
+    Keys: zip_max_entries, zip_max_total_bytes, zip_max_entry_bytes, zip_max_ratio,
+    zip_ratio_min_bytes, max_image_pixels, csv_sniff_bytes.
+    """
+    return {name: int(value) for name, value in get_config()["ingest"].items()}

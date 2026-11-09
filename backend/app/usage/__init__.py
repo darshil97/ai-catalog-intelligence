@@ -8,6 +8,7 @@ from app.usage.ledger import (
     get_usage_summary,
     record_submission,
     restore_entry,
+    restore_run_submissions,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "get_usage_summary",
     "record_submission",
     "restore_entry",
+    "restore_run_submissions",
 ]
