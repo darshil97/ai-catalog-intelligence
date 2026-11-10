@@ -1,4 +1,4 @@
-"""CSV and XLSX. Reading their rows is M3's job; this only confirms what they are."""
+"""CSV and XLSX. Their rows are read by app.ingest.spreadsheet; this only confirms what they are."""
 
 import codecs
 import zipfile
@@ -22,8 +22,9 @@ def _reject(rejection: reasons.Rejection) -> FileRejectedError:
     return FileRejectedError(rejection.code, rejection.message)
 
 
-def _decode_head(head: bytes) -> str | None:
-    """Return the text encoding a CSV seems to use, or None if it isn't text."""
+def detect_encoding(head: bytes) -> str | None:
+    """Return the text encoding a CSV seems to use (utf-8, utf-16 or cp1252), or None if it
+    isn't text. `head` is the start of the file."""
     if head.startswith(_UTF16_BOMS):
         try:
             codecs.getincrementaldecoder("utf-16")().decode(head, final=False)
@@ -46,7 +47,7 @@ def _decode_head(head: bytes) -> str | None:
 
 
 class CsvKind:
-    """Plain text with no binary signature. The encoding is recorded for M3."""
+    """Plain text with no binary signature. The encoding is recorded with the file."""
 
     name = "csv"
     extensions = frozenset({"csv"})
@@ -56,7 +57,7 @@ class CsvKind:
         head = signatures.read_head(path, limits.csv_sniff_bytes)
         if signatures.looks_binary(head):
             raise _reject(reasons.wrong_type(extension))
-        encoding = _decode_head(head)
+        encoding = detect_encoding(head)
         if encoding is None:
             raise _reject(reasons.wrong_type(extension))
         return {"encoding": encoding}
@@ -85,7 +86,7 @@ class XlsxKind:
         names = {info.filename for info in infos}
         if "xl/workbook.xml" not in names or "[Content_Types].xml" not in names:
             raise _reject(reasons.wrong_type(extension))
-        # Declared sizes are enough here: M3 reads the sheets with its own limits.
+        # Declared sizes are enough here: the sheets are read later with their own limits.
         if sum(info.file_size for info in infos) > limits.zip_max_total_bytes:
             raise _reject(reasons.zip_too_large(limits.zip_max_total_bytes))
         sheets = sum(

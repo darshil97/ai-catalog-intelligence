@@ -21,6 +21,10 @@ api = [
 ]
 # Heavy processing packages (torch, OpenCV, OCR) belong here, never in `api`.
 worker = [
+    "defusedxml>=0.7,<1",
+    "jinja2>=3.1,<4",
+    "langchain-aws>=1.9,<2",
+    "openpyxl>=3.1,<4",
     "pillow>=13.0,<14",
     "pypdf>=7.0,<8",
 ]
@@ -56,7 +60,7 @@ ignore = ["G201"]
 
 [tool.ruff.lint.isort]
 # Tests import shared helpers from conftest, which pytest puts on the path.
-known-first-party = ["app", "conftest", "samples"]
+known-first-party = ["app", "conftest", "pipeline", "samples"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S"]
@@ -67,5 +71,5 @@ strict = true
 files = ["app", "server.py", "worker.py"]
 
 [[tool.mypy.overrides]]
-module = ["boto3", "botocore.*"]
+module = ["boto3", "botocore.*", "defusedxml.*", "openpyxl.*"]
 ignore_missing_imports = true

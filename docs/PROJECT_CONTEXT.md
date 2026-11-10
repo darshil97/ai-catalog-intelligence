@@ -7,8 +7,8 @@
 | **Current status** | **M0A, M0B and M1 complete.** Everything below describes the planned system unless listed as implemented here. |
 | **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline), job queue and on-demand EC2 worker, CI and deploys. **M1:** Neon Auth token checks, profiles, allowlist and waitlist, usage ledger and limits, supplier and batch CRUD with UI, admin-only test runs. **M2:** direct-to-S3 uploads with size and checksum checks, duplicate detection, safe ZIP expansion, worker file checks, batch processing with run progress. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
 | **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0003` are applied to `production`, `dev` and `test`. |
-| **Next module** | **M3 Spreadsheet extraction**: needs a proposal and approval. Open from M1: admin-only test runs are unreachable, because Neon Auth tokens never carry the admin role (see [M1 notes](IMPLEMENTATION_PLAN.md#m1-implementation-notes)). |
-| **Last updated** | 2026-11-08 |
+| **Next module** | **M3 Spreadsheet extraction**: approved on 2026-11-10 and built, with LLM column mapping (D32). Still to do: commit, apply the worker's Bedrock permission, deploy, and accept live (see [M3](IMPLEMENTATION_PLAN.md#m3-spreadsheet-extraction)). Open from M1: admin-only test runs are unreachable, because Neon Auth tokens never carry the admin role (see [M1 notes](IMPLEMENTATION_PLAN.md#m1-implementation-notes)). |
+| **Last updated** | 2026-11-10 |
 
 Related documents: [Implementation plan](IMPLEMENTATION_PLAN.md) · [Database schema](DATABASE_SCHEMA.md) · [Decisions](DECISIONS.md) · [Deployment](DEPLOYMENT.md) · [Glossary](GLOSSARY.md)
 
@@ -150,11 +150,14 @@ ai-catalog-intelligence/
         ├── api/                  # main, routes/, services/, schemas/  [API only]
         ├── worker/               # loop, heartbeat, PowerController  [worker only]
         ├── catalog/              # suppliers, batches, products, attribute definitions
-        ├── ingest/parsers/       # csv, xlsx, pdf, image, zip
+        ├── ingest/               # file kinds, safe ZIP expansion
+        │   └── spreadsheet/      # readers (csv, xlsx), header detection, column mapping
+        ├── products/             # products and observations, read by the API  [shared]
+        ├── llm/                  # backends (bedrock, fake), prompts, model_runs  [worker only]
         ├── vision/               # phash, embedders/, ocr/, clustering  [worker only]
         ├── matching/signals/     # image↔SKU evidence
         ├── normalization/        # units, categories, mapping (deterministic)
-        ├── enrichment/llm/       # LLM access through LangChain
+        ├── enrichment/           # titles, descriptions and bullets (M7)
         ├── validation/rules/
         ├── review/
         ├── export/exporters/     # csv, xlsx, shopify
@@ -408,7 +411,7 @@ Install CPU-only torch so it fits on 20 GB, and keep model weights on the EBS vo
 | Identity | Permissions |
 |---|---|
 | `catalog-api` IAM user | `ec2:StartInstances` on the one instance, `ec2:DescribeInstances`, and S3 upload signing, reading and deleting under `prod/` (M2). Stored in Render's environment, with documented rotation. |
-| `catalog-worker` instance role | `ssm:GetParameter` on `/catalog/prod/worker/*`, `kms:Decrypt` through Parameter Store, `AmazonSSMManagedInstanceCore`. S3 arrives in M2 and Bedrock in M4 or M7. No EC2 permissions. |
+| `catalog-worker` instance role | `ssm:GetParameter` on `/catalog/prod/worker/*`, `kms:Decrypt` through Parameter Store, `AmazonSSMManagedInstanceCore`. S3 since M2. From M3, `bedrock:InvokeModel` on gpt-oss-120b in Sydney (in the template, not yet applied). No EC2 permissions. |
 | GitHub deployment access | **Undecided.** OIDC is blocked by organization policy (D26). |
 
 ### CI/CD

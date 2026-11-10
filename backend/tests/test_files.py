@@ -300,7 +300,7 @@ def test_submit_queues_the_batch_and_charges_once(
     assert response.status_code == 202, response.text
     run = response.json()
     assert run["status"] == "queued"
-    assert [stage["stage"] for stage in run["stages"]] == ["ingest", "finalize"]
+    assert [stage["stage"] for stage in run["stages"]] == ["ingest", "finalize", "extract"]
     assert client.get(f"/batches/{batch_id}", headers=alice).json()["status"] == "queued"
     assert client.get(f"/batches/{batch_id}/run", headers=alice).json()["run_id"] == run["run_id"]
     assert client.get("/me", headers=alice).json()["usage"]["submissions_lifetime"] == 1

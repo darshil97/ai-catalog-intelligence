@@ -96,11 +96,22 @@ class RunStage(BaseModel):
 
 
 class RunError(BaseModel):
-    """A processing failure on our side."""
+    """Something that went wrong during a run.
 
-    error_code: str = Field(..., description="What kind of failure.")
+    A failed run lists the failure on our side. A run that succeeded can still list rows and
+    cells that couldn't be used, each with its place in the file.
+    """
+
+    error_code: str = Field(
+        ...,
+        description="What kind of problem. Row and cell problems are row_unreadable, "
+        "row_too_large, formula_without_value, error_value and more_row_problems.",
+    )
     message: str = Field(..., description="Details.")
     source_file_id: UUID | None = Field(None, description="The file involved, if any.")
+    location: dict[str, Any] | None = Field(
+        None, description="Where in the file: sheet, sheet_index, row, and column for a cell."
+    )
     created_at: datetime = Field(..., description="When it happened.")
 
 
@@ -118,5 +129,16 @@ class BatchRun(BaseModel):
     images_found: int | None = Field(None, description="Images found.")
     images_kept: int | None = Field(None, description="Images kept.")
     images_discarded: int | None = Field(None, description="Images rejected or left out.")
+    products_found: int | None = Field(
+        None, description="Distinct products found in the batch's spreadsheets."
+    )
+    products_kept: int | None = Field(
+        None, description="Products processed: the first ones in file order, up to your limit."
+    )
+    products_discarded: int | None = Field(
+        None, description="Products past your limit. Nothing is stored for them."
+    )
     stages: list[RunStage] = Field(..., description="Stage progress, in order.")
-    errors: list[RunError] = Field(..., description="Failures on our side, oldest first.")
+    errors: list[RunError] = Field(
+        ..., description="Failures, and rows or cells that couldn't be used, oldest first."
+    )

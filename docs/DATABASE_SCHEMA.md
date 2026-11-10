@@ -4,6 +4,8 @@
 - **Job queue** (`pipeline_runs`, `pipeline_stage_runs`, `jobs`, `processing_errors`, `worker_control`, `worker_instances`, `worker_sessions`): migration `0002`, applied to the Neon `production`, `dev` and `test` branches.
 - **Accounts and catalog structure** (`user_profiles`, `user_limits`, `usage_ledger`, `suppliers`, `batches`, plus owner foreign keys on `pipeline_runs` and `jobs`): migration `0003` (M1), applied to `production`, `dev` and `test`. It refuses to run while queue rows exist whose owners have no profile.
 
+- **Spreadsheet extraction** (`categories`, `attribute_definitions`, `model_runs`, `column_mappings`, `spreadsheet_sheets`, `source_records`, `products`, `attribute_observations`): migration `0005` (M3), applied to `test` only so far.
+
 This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
 PostgreSQL on Neon (Sydney), with the `pgvector` extension.
@@ -146,6 +148,36 @@ One spreadsheet row or one PDF page or block.
 
 **Constraint:** `UNIQUE(source_file_id, record_type, location)`.
 
+**As built (M3):** a spreadsheet row's `location` is `{"sheet", "sheet_index", "row"}`, with `sheet` null for a CSV. Its `raw_data` holds every non-empty cell by column letter under `cells`, mapped or not, plus `formats`, `flags` and `merged_from` where they apply. Only rows of kept products are stored. A row's ID is derived from its sheet and row number, so reading it twice stores it once.
+
+### `spreadsheet_sheets`
+
+One row per sheet of each spreadsheet (one per CSV), written by `extract_select`. Added in M3.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | Derived from the file and sheet index |
+| `source_file_id`, `batch_id` | UUID FK | `ON DELETE CASCADE` |
+| `sheet_index`, `sheet_name`, `hidden` | | `sheet_name` is null for a CSV |
+| `status` | TEXT NOT NULL | `used`, `skipped` |
+| `skip_reason`, `skip_message` | TEXT | `empty`, `no_header`, `no_identifier`, `unreadable` |
+| `header_row`, `header_rows` | INTEGER | `header_rows` is 2 for a two-row header |
+| `columns` | JSONB NOT NULL | Per column: letter, header, attribute, source, confidence, reason, suggestion, model run |
+| `mapping_source` | TEXT NOT NULL | `known_names`, `saved`, `llm`, `llm_failed`, `llm_capped`, `none` |
+| `mapping_message` | TEXT | Why the LLM wasn't used when it was needed |
+| `row_count`, `rows_without_identifier`, `duplicate_rows`, `rows_over_cap`, `unreadable_rows` | INTEGER | |
+| `chunk_starts`, `chunk_rows` | JSONB, INTEGER | Which row blocks hold kept products |
+
+**Constraint:** `UNIQUE(source_file_id, sheet_index)`.
+
+### `column_mappings`
+
+A supplier's remembered layouts (D32). Added in M3.
+
+`id`, `supplier_id` FK, `owner_user_id` FK, `header_fingerprint` (SHA-256 of the normalized headers, the attribute list and the mapping version), `mapping` JSONB, `created_at`, `updated_at`.
+
+**Constraint:** `UNIQUE(supplier_id, header_fingerprint)`.
+
 ### `categories` and `attribute_definitions`
 
 These make the schema category-independent. Home & Kitchen is seed data, not code.
@@ -161,8 +193,10 @@ These make the schema category-independent. Home & Kitchen is seed data, not cod
 | `data_type` | TEXT NOT NULL | `text`, `number`, `boolean`, `enum` |
 | `unit_family` | TEXT | For example `mass`, `length` |
 | `category_scope` | UUID FK, nullable | Null means all categories |
-| `rules` | JSONB | Required rules, allowed values |
+| `rules` | JSONB | Required rules, allowed values. `description` tells the LLM what belongs in the attribute. |
 | `version` | INTEGER NOT NULL | |
+
+**As built (M3):** also `name` (shown to people) and `created_at`. Seventeen attributes are seeded by the migration. The column names that map to each one live in `config.yaml` (`extraction.header_names`), so they can grow without a migration. `categories` is empty until M6.
 
 ### `products`
 
@@ -180,6 +214,8 @@ These make the schema category-independent. Home & Kitchen is seed data, not cod
 **Constraint:** `UNIQUE(batch_id, product_key)`.
 
 Products beyond the POC limit get no row. Their counts are stored on `pipeline_runs`.
+
+**As built (M3):** also `key_source` (`sku`, `model_number` or `gtin`), `match_key` (the key without punctuation, for M5B), `identifier_flags` JSONB (`scientific_notation`, `precision_lost`, `invalid_gtin`) and `source_order` (position in file order). `category_id` stays null until M6.
 
 ---
 
@@ -212,6 +248,8 @@ Three layers keep the original, the cleaned value and the chosen value separate:
 | `created_at` | TIMESTAMPTZ | |
 
 **Constraint:** `UNIQUE(product_id, attribute_id, source_file_id, location, extractor)`, which makes re-runs idempotent.
+
+**As built (M3):** a spreadsheet observation's `location` is `{"sheet", "sheet_index", "row", "column", "header"}`, plus `merged_from` for a cell filled from a merged range. `extractor` is `spreadsheet@1`. `model_run_id` and `confidence` are set when the LLM decided what the column means; a known column name gives confidence 1 and no model run. The value is never the LLM's.
 
 ### `normalized_values`
 
@@ -326,6 +364,8 @@ Three layers keep the original, the cleaned value and the chosen value separate:
 
 **Constraint:** partial `UNIQUE(owner_user_id, input_hash) WHERE status = 'succeeded'`, so a retry reuses a stored response and results never cross users.
 
+**As built (M3):** also `task` (such as `column_mapping`) and `response` JSONB, which holds the checked reply when it's small. `job_id` is set to null when its job is purged, so costs outlive the batch. Failed attempts are recorded too.
+
 ### `generated_content`
 
 `id`, `product_id` FK, `field` (`title`, `description`, `bullet`), `text`, `version` INTEGER, `model_run_id` FK, `cited_attribute_ids` UUID[] NOT NULL, `status` (`generated`, `edited`, `approved`, `rejected`), `created_at`.
@@ -355,6 +395,8 @@ Append-only audit trail: `id`, `actor_user_id` FK, `entity_type`, `entity_id`, `
 ### `processing_errors`
 
 `id`, `pipeline_run_id` FK, `job_id` FK, `source_file_id` FK nullable, `location` JSONB, `error_code`, `message`, `created_at`.
+
+Since M3 this also holds rows and cells that couldn't be used in a run that otherwise succeeded, each with its `location`: `row_unreadable`, `row_too_large`, `formula_without_value`, `error_value` and `more_row_problems`. At most 20 are stored per extract job, and the rest are counted.
 
 ### `exports`
 

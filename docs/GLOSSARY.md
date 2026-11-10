@@ -57,6 +57,14 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Observation** | A value exactly as found in a source, with its location. Never changed. | "1.5 L" in sheet 1, row 7, column D. |
 | **Provenance** | The record of where a value came from. | Which file, page and extractor produced it. |
 | **Extraction** | Pulling raw values out of files. | Reading a spreadsheet cell. |
+| **Column mapping** | Deciding which attribute each column of a sheet holds. | "Gew. netto (g)" is `net_weight`. |
+| **Known name** | A column name listed in config for an attribute. Matched first, with no LLM. | "Item No." means SKU. |
+| **Saved mapping** | A supplier's column mapping, remembered by its header layout and reused. | The same template next month needs no LLM call. |
+| **Header fingerprint** | A hash identifying a header layout, used to find a saved mapping. | Changes if a column is added. |
+| **Product key** | The cleaned identifier that makes rows one product. | "ab-77" and "AB-77 " are both `AB-77`. |
+| **Match key** | The product key without punctuation, for looser matching later. | `AB77`. |
+| **Source record** | One spreadsheet row as the file gave it, with every cell. | Row 14, including unmapped columns. |
+| **GTIN** | The number under a barcode, also called EAN or UPC. Its last digit checks the rest. | `4006381333931`. |
 | **Normalization** | Converting values into a standard form using fixed rules. | "1.5 L" becomes 1500 ml. |
 | **Enrichment** | Generating titles, descriptions and bullets from verified values. | Written by an LLM, citing the attributes used. |
 | **Validation** | Checking records against rules. | Flagging a missing brand. |
@@ -84,6 +92,7 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Inference profile** | A Bedrock ID that routes requests across a defined set of regions. | Global or Australia routing. |
 | **Token (AI)** | A small piece of text used to measure and bill LLM use. | Price is per million tokens. Different from a JWT. |
 | **Schema validation** | Checking data matches an expected structure. | Rejecting a malformed LLM response. |
+| **Model run** | The record of one LLM call: model, tokens, cost and result. | One row per column-mapping call. |
 | **Prompt injection** | Text in a document trying to give instructions to the AI. | A PDF saying "ignore your rules". Supplier text is treated as data. |
 
 ## Infrastructure
