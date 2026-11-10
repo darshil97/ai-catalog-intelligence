@@ -12,7 +12,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | M0B | Processing platform | M0A | Completed |
 | M1 | Accounts, suppliers and batches | M0A | Completed |
 | M2 | File ingestion and storage | M0B, M1 | Completed |
-| M3 | Spreadsheet extraction | M2 | Not Started |
+| M3 | Spreadsheet extraction | M2 | In Progress |
 | M4 | Document and image text extraction | M3 | Not Started |
 | M5A | Image processing | M2, M0B | Not Started |
 | M5B | Image association | M3, M4, M5A | Not Started |
@@ -226,6 +226,8 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 
 ## M3 Spreadsheet extraction
 
+**Status:** proposal approved by the owner on 2026-11-10, with LLM column mapping in place of the fixed list first proposed (D32). **In progress:** built and tested locally and against the Neon `test` branch. Not yet committed, deployed or accepted live. See the implementation notes below.
+
 **Scope**
 - CSV and XLSX parsers.
 - Column mapping, source records and attribute observations.
@@ -243,6 +245,26 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 - Partial failure: a bad row doesn't fail the chunk.
 - Idempotent re-run.
 - Exactly N and N+1 products.
+
+**Approved decisions (2026-11-10):** columns are mapped by known names first and the LLM for the rest, with each supplier's layout remembered (D32); the LLM is gpt-oss-120b on Bedrock, called by the worker through its instance role; rows with no identifier are skipped and counted; unmapped columns are kept with each row but produce no observations; the seed attributes are SKU, model number, barcode, name, brand, description, colour, material, price, currency, pack quantity, net weight, capacity, length, width, height and the supplier's category.
+
+**Implementation notes**
+- Migration `0005`: `categories` (empty until M6), `attribute_definitions` (17 seeded), `model_runs`, `column_mappings`, `spreadsheet_sheets`, `source_records`, `products` and `attribute_observations`. Expand-only.
+- The `ingest` pipeline gains a third stage, `extract`. `extract_select` maps every sheet, chooses the first N products in file order, and stores the sheets, products and counts. It then creates one `extract_rows` job per 1,000-row block that holds a kept product, so a 50,000-row sheet under a limit of 5 usually needs one job.
+- `app/ingest/spreadsheet`: a reader registry (CSV and XLSX), header detection, and column mapping. XLSX is streamed with openpyxl. Merged ranges are read from the sheet XML and filled across their range.
+- `app/llm`: a backend registry (`bedrock` through LangChain, `fake` for tests), Jinja2 prompts under `app/templates/prompts`, and a runner that records every call in `model_runs` and reuses a stored reply for the same question. LLM setup moved here from M7, as the M7 scope allows. The global spend cap stays in M7. M3 caps mapping calls at 10 per run.
+- `app/catalog/identifiers.py`: identifier cleanup. `app/products`: read access for the API.
+- API: `GET /batches/{id}/products`, `GET /products/{id}`, `GET /batches/{id}/sheets`. `GET /batches/{id}/run` adds product counts and lists rows and cells that couldn't be used.
+- Frontend: the batch page shows products, how each sheet was mapped, and unusable rows. A product page shows every value with its file, sheet, row and column.
+- CloudFormation: the worker role gains `bedrock:InvokeModel` on gpt-oss-120b in Sydney (policy `worker-llm`). **Not yet applied to AWS.**
+- Verified against the real model (`tests/test_llm_live.py`): a German price list with a title row mapped correctly, and gross weight and stock were left unmapped.
+
+**Behaviour worth knowing**
+- Values shown as text follow the cell's format where it changes meaning: decimal places, leading zeros, percentages and dates. Thousands separators and currency symbols are left out, and the format is kept with the row.
+- A formula cell uses the result Excel last saved. A formula that was never calculated, or a spreadsheet error such as `#N/A`, has no value: it's reported with its cell, and no observation is made.
+- A row is one product by its SKU, or its model number if it has no SKU, or its barcode. Case and surrounding spaces are ignored. Dashes and slashes are kept.
+- A product whose only row couldn't be stored (too large) still exists, with nothing read for it, and the row is reported.
+- An image-only batch completes with no products. Products from images come with M4 and M5B.
 
 ---
 

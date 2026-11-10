@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type DragEvent } from "react";
 
 import { RequireActive } from "@/components/Account";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { Extraction } from "@/components/Extraction";
 import { ApiError, api } from "@/lib/api";
 import type {
   Batch,
@@ -202,6 +203,10 @@ function BatchDetail() {
       )}
 
       {run.data && <RunPanel run={run.data} />}
+      {run.data?.status === "succeeded" && (
+        // Keyed by the run, so a batch processed again loads its new results.
+        <Extraction key={run.data.run_id} batchId={batchId} run={run.data} />
+      )}
     </div>
   );
 }
@@ -375,7 +380,7 @@ function RunPanel({ run }: { run: BatchRun }) {
         <p>
           {run.status === "queued"
             ? "Waiting for the worker to start. This can take a couple of minutes."
-            : "Checking files…"}{" "}
+            : "Checking files and reading spreadsheets…"}{" "}
           {run.stages
             .map(
               (stage) =>

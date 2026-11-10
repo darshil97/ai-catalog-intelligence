@@ -36,6 +36,10 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 | [D26](#d26-github-oidc-is-blocked) | GitHub OIDC is blocked: deploy with a narrow IAM user key | Approved |
 | [D27](#d27-google-only-sign-in) | Google-only sign-in: verified emails only, and email-and-password turned off | Approved |
 | [D28](#d28-hand-written-frontend-api-types) | Hand-written frontend API types until the generator supports TypeScript 6 | Proposed |
+| [D29](#d29-one-s3-bucket-one-prefix-per-environment) | One S3 bucket, with one prefix per environment | Approved |
+| [D30](#d30-uploads-checked-by-hash-in-the-browser-and-by-s3) | Uploads checked by hash in the browser and by S3 | Approved |
+| [D31](#d31-a-batch-is-processed-once-unless-processing-fails-on-our-side) | A batch is processed once, unless processing fails on our side | Approved |
+| [D32](#d32-llm-column-mapping-with-remembered-layouts) | Columns mapped by known names, then the LLM, with each supplier's layout remembered | Approved |
 
 ---
 
@@ -604,3 +608,29 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 **Decision:** `POST /batches/{id}/process` charges one submission and works only on `draft` or `failed` batches. Bad files are rejected one by one with a reason and never fail the run, so a failed run always means a platform failure: its submission is restored automatically and the batch can be processed again. Files can only be added or removed while a batch is `draft` or `failed`.
 
 **Consequences:** a user can't reprocess a completed batch to pick up changes; they create a new batch. Retries recheck every file from scratch.
+
+---
+
+## D32: LLM column mapping with remembered layouts
+
+**Status:** Approved by the owner on 2026-11-10 (M3).
+
+**Decision:** A sheet's columns are mapped to attributes in three steps. Known column names from `config.yaml` are matched first. If a named column is left over, or no header row was found, a mapping saved for this supplier and header layout is reused. Otherwise the LLM (gpt-oss-120b, D2) is asked once for the sheet, and its answer is saved for the supplier. The LLM only says what each column means and which row holds the names. Values are always copied from the cells by code.
+
+**Context:** The owner pointed out that every supplier uses its own template, so a fixed list of names wouldn't be enough, and asked whether to use an LLM or require one fixed CSV template.
+
+**Alternatives considered:**
+- *A fixed template only.* Simple and free, but suppliers would have to reformat every file, which is the work this product exists to remove.
+- *Known names only,* as first proposed. Predictable, but fails on other languages and abbreviations.
+- *The LLM reading every row.* Flexible, but costly, slow, and able to change or invent values.
+
+**Rationale:** One call per new layout costs a fraction of a cent, and provenance is untouched because the model never handles values. Known names keep common headers free and identical every time. Saved mappings make a supplier's repeat uploads free and consistent.
+
+**Consequences:**
+- The model may only choose from `attribute_definitions`, or null. Any other answer is rejected and asked again once. An answer below 60% confidence leaves the column unmapped and is shown as a suggestion.
+- If the model can't be reached, or the run has used its 10 mapping calls, the sheet uses known names only and says so. Nothing fails silently.
+- Each observation from an LLM-mapped column carries the model run and its confidence.
+- Saved mappings are per supplier, so one supplier's layout never decides another's. Raising `extraction.mapping_version` stops old ones being reused.
+- LLM setup (`app/llm`, `model_runs`, the worker's Bedrock permission) arrives in M3, not M7.
+- Correcting a mapping by hand isn't built yet. The saved-mapping table is where a correction would go.
+

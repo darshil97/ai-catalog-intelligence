@@ -13,7 +13,8 @@ BLOCK_HEAVY_IMPORTS = """
     import sys
 
     HEAVY = {"torch", "torchvision", "open_clip", "cv2", "PIL", "pandas", "numpy",
-             "onnxruntime", "rapidocr", "rapidocr_onnxruntime", "pypdf", "boto3"}
+             "onnxruntime", "rapidocr", "rapidocr_onnxruntime", "pypdf", "boto3",
+             "openpyxl", "defusedxml", "jinja2", "langchain_aws", "langchain_core"}
 
     class Blocker:
         def find_spec(self, name, path=None, target=None):
@@ -61,6 +62,8 @@ def test_api_does_not_load_job_handlers() -> None:
 
         assert "app.jobs.handlers" not in sys.modules
         assert "app.worker.loop" not in sys.modules
+        # The API never calls an LLM, so it must not even load the code that does.
+        assert "app.llm" not in sys.modules
         """
     )
     assert result.returncode == 0, result.stderr
@@ -74,7 +77,8 @@ def test_worker_does_not_need_web_packages() -> None:
 
         assert "fastapi" not in sys.modules
         assert "starlette" not in sys.modules
-        assert "noop" in __import__("app.jobs.base", fromlist=["x"]).get_registered_handler_names()
+        names = __import__("app.jobs.base", fromlist=["x"]).get_registered_handler_names()
+        assert {"noop", "ingest_file", "extract_select", "extract_rows"} <= names
         """
     )
     assert result.returncode == 0, result.stderr

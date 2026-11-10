@@ -118,6 +118,85 @@ ingest:
   # How much of a CSV is read to check it's text.
   csv_sniff_bytes: 65536
 
+# Reading spreadsheets into products (M3).
+extraction:
+  # Stored on every observation, so a later change to how cells are read is traceable.
+  extractor: spreadsheet@1
+  # The header row is looked for in this many rows from the top.
+  header_scan_rows: 20
+  # Data rows shown to the LLM along with the headers.
+  sample_rows: 5
+  # Cells longer than this are shortened in what the LLM sees. Stored values are never shortened.
+  sample_cell_chars: 80
+  # One extract job reads this many rows of a sheet.
+  chunk_rows: 1000
+  # Rows, columns and sheets beyond these are counted and reported, not read.
+  max_rows_per_sheet: 50000
+  max_columns: 200
+  max_sheets_per_file: 20
+  # A row whose cells add up to more than this is reported and skipped.
+  max_row_bytes: 65536
+  max_merged_ranges: 5000
+  # Row problems reported per extract job. More than this are counted only.
+  max_row_notes_per_chunk: 20
+  # LLM column-mapping calls allowed in one run. Sheets past this use known names only.
+  max_llm_calls_per_run: 10
+  # An LLM mapping below this confidence is shown as a suggestion, and the column stays unmapped.
+  min_llm_confidence: 0.6
+  # Raise to stop reusing saved mappings, after changing the rules or the prompt.
+  mapping_version: 1
+  # A row's product is identified by the first of these attributes that has a value.
+  identifier_attributes: [sku, model_number, gtin]
+  # Known column names per attribute, compared after lowercasing and removing punctuation.
+  # Anything not listed here is put to the LLM. Codes must exist in attribute_definitions.
+  header_names:
+    sku: [sku, sku code, sku no, sku number, item no, item number, item code, item id,
+          article no, article number, article code, art no, art nr, artikelnummer,
+          product code, product id, product no, product number, part no, part number,
+          ref, reference, ref no, stock code]
+    model_number: [model, model no, model number, model name, model code, mpn,
+                   manufacturer part number, mfr part no]
+    gtin: [gtin, ean, ean13, ean 13, ean code, upc, upc code, barcode, bar code, gtin 13, gtin 14]
+    product_name: [name, product name, product title, title, item name, item description,
+                   product, article name]
+    brand: [brand, brand name, make, manufacturer]
+    description: [description, product description, long description, details, desc]
+    color: [color, colour, color name, colour name]
+    material: [material, materials, material composition]
+    price: [price, unit price, cost, cost price, wholesale price, list price, net price, rate,
+            fob price, mrp, rrp]
+    currency: [currency, currency code, cur]
+    pack_quantity: [pack qty, pack quantity, pack size, pcs per carton, pieces per carton,
+                    qty per carton, units per carton, carton qty, inner qty, moq]
+    net_weight: [net weight, net wt, nett weight, weight, product weight, item weight, nw]
+    capacity: [capacity, volume]
+    length: [length, product length, item length]
+    width: [width, product width, item width]
+    height: [height, product height, item height]
+    supplier_category: [category, product category, category name, product type, type, range,
+                        collection, department]
+
+# LLM calls go through LangChain to Amazon Bedrock (D24), from the worker only.
+llm:
+  # bedrock, or fake for tests.
+  backend: ${LLM_BACKEND:-bedrock}
+  region: ${AWS_REGION:-ap-southeast-2}
+  connect_timeout_seconds: 5
+  # One entry per task, so moving a task to another model is a change here only.
+  tasks:
+    column_mapping:
+      model_id: openai.gpt-oss-120b-1:0
+      prompt: extraction/column_mapping
+      prompt_version: "1"
+      max_tokens: 4000
+      temperature: 0
+      timeout_seconds: 60
+      # Calls made for one request, counting retries after an unusable reply.
+      max_attempts: 2
+  # USD per million tokens, used to record what each call cost.
+  prices:
+    openai.gpt-oss-120b-1:0: { input: 0.155, output: 0.618 }
+
 compute:
   # ec2 starts the instance. noop assumes you started worker.py yourself.
   worker_controller: ${WORKER_CONTROLLER:-noop}
@@ -162,11 +241,14 @@ pipelines:
     - stage: noop
       job_type: noop_plan
   # A batch's files are checked one job per file, then the image limit is applied across them.
+  # Then spreadsheets are mapped and their products chosen, and rows are read in chunks.
   ingest:
     - stage: ingest
       job_type: ingest_plan
     - stage: finalize
       job_type: ingest_finalize
+    - stage: extract
+      job_type: extract_select
 
 # Admin-only diagnostic runs of the no-op pipeline.
 test_runs:

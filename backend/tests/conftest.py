@@ -47,6 +47,8 @@ os.environ["SIGNUPS_ENABLED"] = "false"
 # Storage stays in memory. The live check in test_storage_live.py opts in to S3 explicitly.
 os.environ["STORAGE_BACKEND"] = "memory"
 os.environ["S3_PREFIX"] = "test"
+# No test calls a real model. The live check in test_llm_live.py opts in to Bedrock explicitly.
+os.environ["LLM_BACKEND"] = "fake"
 
 import subprocess  # noqa: E402
 import sys  # noqa: E402
@@ -66,6 +68,8 @@ from app.auth import get_verifier, profile_cache  # noqa: E402
 from app.auth.jwks import JwksCache  # noqa: E402
 from app.config import get_config  # noqa: E402
 from app.db import close_pool, get_pool  # noqa: E402
+from app.llm import get_chat_backend  # noqa: E402
+from app.llm.backends.fake import FakeBackend  # noqa: E402
 from app.storage import get_object_store  # noqa: E402
 from app.storage.backends.memory import MemoryObjectStore  # noqa: E402
 
@@ -188,6 +192,16 @@ def store() -> Iterator[MemoryObjectStore]:
     memory.clear()
     yield memory
     memory.clear()
+
+
+@pytest.fixture
+def llm() -> Iterator[FakeBackend]:
+    """The scripted LLM, with no replies queued. A call with nothing queued fails."""
+    fake = get_chat_backend()
+    assert isinstance(fake, FakeBackend)
+    fake.clear()
+    yield fake
+    fake.clear()
 
 
 @pytest.fixture

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import batches, files, health, me, suppliers, test_runs
+from app.api.routes import batches, files, health, me, products, suppliers, test_runs
 from app.compute.starter import request_worker_start
 from app.config import get_api_config
 from app.middleware import RequestContextMiddleware
@@ -43,4 +43,5 @@ app.include_router(me.router)
 app.include_router(suppliers.router)
 app.include_router(batches.router)
 app.include_router(files.router)
+app.include_router(products.router)
 app.include_router(test_runs.router)

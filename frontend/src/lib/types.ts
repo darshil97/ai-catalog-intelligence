@@ -87,11 +87,104 @@ export type BatchRun = {
   images_found: number | null;
   images_kept: number | null;
   images_discarded: number | null;
+  products_found: number | null;
+  products_kept: number | null;
+  products_discarded: number | null;
   stages: RunStage[];
-  errors: {
-    error_code: string;
-    message: string;
-    source_file_id: string | null;
-    created_at: string;
-  }[];
+  errors: RunError[];
 };
+
+// A failure on our side, or a row or cell that couldn't be used.
+export type RunError = {
+  error_code: string;
+  message: string;
+  source_file_id: string | null;
+  location: CellLocation | null;
+  created_at: string;
+};
+
+// Where a value was read from. `sheet` is null for a CSV.
+export type CellLocation = {
+  sheet?: string | null;
+  sheet_index?: number;
+  row?: number;
+  column?: string;
+  header?: string;
+  merged_from?: string;
+};
+
+export type Product = {
+  id: string;
+  batch_id: string;
+  product_key: string;
+  key_source: "sku" | "model_number" | "gtin";
+  supplier_sku: string | null;
+  identifier_flags: string[];
+  source_order: number;
+  status: string;
+  created_at: string;
+};
+
+export type ProductSummary = Product & {
+  name: string | null;
+  observation_count: number;
+};
+
+export type ProductList = { batch_id: string; items: ProductSummary[] };
+
+export type Observation = {
+  id: string;
+  attribute_code: string;
+  attribute_name: string;
+  raw_value: string;
+  source_file_id: string;
+  source_file_name: string;
+  source_record_id: string | null;
+  location: CellLocation;
+  extractor: string;
+  confidence: number | null;
+  mapped_by: "known_name" | "llm";
+};
+
+export type ProductDetail = Product & { observations: Observation[] };
+
+export type SheetColumn = {
+  index: number;
+  letter: string;
+  header: string;
+  attribute: string | null;
+  source: "known_name" | "llm" | null;
+  confidence: number | null;
+  reason: string | null;
+  suggestion: string | null;
+};
+
+export type Sheet = {
+  id: string;
+  source_file_id: string;
+  source_file_name: string;
+  sheet_index: number;
+  sheet_name: string | null;
+  hidden: boolean;
+  status: "used" | "skipped";
+  skip_reason: string | null;
+  skip_message: string | null;
+  header_row: number | null;
+  header_rows: number | null;
+  columns: SheetColumn[];
+  mapping_source:
+    | "none"
+    | "known_names"
+    | "saved"
+    | "llm"
+    | "llm_failed"
+    | "llm_capped";
+  mapping_message: string | null;
+  row_count: number;
+  rows_without_identifier: number;
+  duplicate_rows: number;
+  rows_over_cap: number;
+  unreadable_rows: number;
+};
+
+export type SheetList = { batch_id: string; items: Sheet[] };

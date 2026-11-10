@@ -131,6 +131,16 @@ One bucket, `ai-catalog-intelligence` in Sydney, created by the `catalog-worker`
 - **Local:** create an access key for the `catalog-dev` IAM user in the console and put it in `backend/.env` as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (no AWS CLI needed). That user can reach only `dev/` and `test/`.
 - **Live storage check:** `LIVE_STORAGE_TEST=1 uv run pytest tests/test_storage_live.py` proves S3 refuses an upload whose size or checksum differs from its link.
 
+## LLM calls (M3)
+
+Only the worker calls an LLM, through Amazon Bedrock in Sydney (D24).
+
+- **EC2:** no key. The `catalog-worker` role has `bedrock:InvokeModel` on gpt-oss-120b (policy `worker-llm` in the stack). Adding a model means adding it to that policy and to `llm.tasks` in `config.yaml`.
+- **Local:** the Bedrock API key in `backend/.env` (`AWS_BEARER_TOKEN_BEDROCK`).
+- **Render and Vercel:** nothing. Never add the Bedrock key to either.
+- **Tests:** `LLM_BACKEND=fake` is set by the test setup, so no test calls a model.
+- **Live model check:** `LIVE_LLM_TEST=1 uv run pytest tests/test_llm_live.py` sends one made-up price list to the real model, for a fraction of a cent.
+
 ## Database migrations
 
 - **Current state:** migrations through `0003` are applied to `production`, `dev` and `test`. The first `production` migration was applied manually on 2026-11-08, with the owner's approval.

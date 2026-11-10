@@ -229,3 +229,66 @@ def get_ingest_config() -> dict[str, int]:
     zip_ratio_min_bytes, max_image_pixels, csv_sniff_bytes.
     """
     return {name: int(value) for name, value in get_config()["ingest"].items()}
+
+
+def get_extraction_config() -> dict[str, Any]:
+    """Return spreadsheet extraction settings.
+
+    Keys: extractor, header_scan_rows, sample_rows, sample_cell_chars, chunk_rows,
+    max_rows_per_sheet, max_columns, max_sheets_per_file, max_row_bytes, max_merged_ranges,
+    max_row_notes_per_chunk, max_llm_calls_per_run, min_llm_confidence (float),
+    mapping_version, identifier_attributes (list of attribute codes, most preferred first),
+    header_names (attribute code to its known column names).
+    """
+    section = dict(get_config()["extraction"])
+    for name, value in section.items():
+        if name not in ("extractor", "min_llm_confidence", "identifier_attributes", "header_names"):
+            section[name] = int(value)
+    section["min_llm_confidence"] = float(section["min_llm_confidence"])
+    section["identifier_attributes"] = _as_list(section["identifier_attributes"])
+    section["header_names"] = {
+        str(code): _as_list(names) for code, names in section["header_names"].items()
+    }
+    return section
+
+
+def get_llm_config() -> dict[str, Any]:
+    """Return LLM settings shared by every task.
+
+    Keys: backend, region, connect_timeout_seconds, prices (model ID to a dict with keys input
+    and output, in USD per million tokens).
+    """
+    section = get_config()["llm"]
+    return {
+        "backend": str(section["backend"]),
+        "region": str(section["region"]),
+        "connect_timeout_seconds": int(section["connect_timeout_seconds"]),
+        "prices": {
+            str(model): {"input": float(price["input"]), "output": float(price["output"])}
+            for model, price in section["prices"].items()
+        },
+    }
+
+
+def get_llm_task_config(task: str) -> dict[str, Any]:
+    """Return one LLM task's settings.
+
+    Keys: model_id, prompt, prompt_version, max_tokens, temperature (float), timeout_seconds,
+    max_attempts.
+
+    Raises:
+        ValueError: if the task isn't configured, naming the ones that are.
+    """
+    tasks = get_config()["llm"]["tasks"]
+    if task not in tasks:
+        raise ValueError(f"Unknown LLM task: {task!r}. Configured: {', '.join(sorted(tasks))}")
+    section = dict(tasks[task])
+    return {
+        "model_id": str(section["model_id"]),
+        "prompt": str(section["prompt"]),
+        "prompt_version": str(section["prompt_version"]),
+        "max_tokens": int(section["max_tokens"]),
+        "temperature": float(section["temperature"]),
+        "timeout_seconds": int(section["timeout_seconds"]),
+        "max_attempts": int(section["max_attempts"]),
+    }

@@ -156,6 +156,15 @@ Resources:
               - Effect: Allow
                 Action: s3:PutObject
                 Resource: !Sub ${Bucket.Arn}/prod/derived/*
+        # Calls the text model, in this region only. The image model is added by the module
+        # that first needs it. The model ID must match llm.tasks in backend/config.yaml.
+        - PolicyName: worker-llm
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource: !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/openai.gpt-oss-120b-1:0
 
   WorkerInstanceProfile:
     Type: AWS::IAM::InstanceProfile
