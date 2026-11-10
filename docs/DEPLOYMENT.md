@@ -143,7 +143,7 @@ Only the worker calls an LLM, through Amazon Bedrock in Sydney (D24).
 
 ## Database migrations
 
-- **Current state:** migrations through `0003` are applied to `production`, `dev` and `test`. The first `production` migration was applied manually on 2026-11-08, with the owner's approval.
+- **Current state:** migrations through `0005` are applied to `production`, `dev` and `test`. The first `production` migration was applied manually on 2026-11-08, with the owner's approval.
 - **Production migrations run from GitHub Actions** once the deployment jobs exist in `ci.yml` (M0B), in the order migrate → worker → API. Render's pre-deploy commands are documented for paid services, so they aren't used.
 - **Expand/contract only:** a migration must stay compatible with the code currently running.
 - **Migrations use the direct URL** (pooling off), and the app uses the pooled one.
@@ -281,7 +281,7 @@ Turn off termination protection on the instance first, or the delete fails. This
 
 ### Automatic worker deploys (B3)
 
-On every push to `main` that changes `backend/`, `ci.yml` runs `migrate`, then `deploy-worker` if worker or shared code changed. They run in the GitHub environment `production`, one deploy at a time. Render waits for these checks before deploying the API.
+On every push to `main` that changes `backend/`, `ci.yml` runs `migrate`, then `deploy-worker` if worker or shared code changed. Changes are counted since the last commit whose CI run fully succeeded on `main`, so a push after a failed run also deploys what that run didn't (on 2026-11-10 a fix pushed after a failed M3 run skipped the worker, which was then deployed by hand). If no such commit is found, everything is deployed. They run in the GitHub environment `production`, one deploy at a time. Render waits for these checks before deploying the API.
 
 **`deploy-worker`, step by step:**
 1. Pauses the worker in the database, for at most 30 minutes.

@@ -45,9 +45,14 @@ jobs:
 
   # The jobs below run only on main. Render waits for all of them before deploying the API, so
   # the order is always migrate, then worker, then API.
+  # Decides what to deploy by comparing with the last commit whose CI run fully succeeded, not
+  # with the previous push: a push after a failed run must still deploy what that run didn't.
   changes:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
       backend: ${{ steps.paths.outputs.backend }}
       worker: ${{ steps.paths.outputs.worker }}
@@ -57,9 +62,19 @@ jobs:
           fetch-depth: 0
       - id: paths
         env:
-          BEFORE: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          files=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+          base=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch main \
+            --event push --status success --limit 1 --json headSha --jq '.[0].headSha // ""' \
+            || true)
+          if [ -n "$base" ] && git merge-base --is-ancestor "$base" "$GITHUB_SHA"; then
+            echo "Comparing with the last successful run: $base"
+            files=$(git diff --name-only "$base" "$GITHUB_SHA")
+          else
+            # No usable base, such as after a history rewrite: deploy everything.
+            echo "No successful run to compare with, so everything is deployed"
+            files="backend/app/"
+          fi
           backend=false
           worker=false
           if grep -q '^backend/' <<<"$files"; then backend=true; fi

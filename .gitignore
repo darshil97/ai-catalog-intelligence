@@ -27,3 +27,6 @@ next-env.d.ts
 .DS_Store
 .idea/
 .vscode/
+
+# Sample supplier files for trying the app by hand
+samples/
