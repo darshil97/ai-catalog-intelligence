@@ -7,7 +7,9 @@ from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[1]
 # Render's free tier allows 512 MB. This leaves room for real work on top of the imports.
-API_IMPORT_CEILING_MB = 150
+# CI measures more than Render uses: it installs the worker's packages too, and Linux reports a
+# higher peak than macOS. The live API used about 110 MB on 2026-11-10, when CI measured 165 MB.
+API_IMPORT_CEILING_MB = 200
 
 BLOCK_HEAVY_IMPORTS = """
     import sys
