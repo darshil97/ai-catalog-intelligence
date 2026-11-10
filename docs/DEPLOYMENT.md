@@ -150,7 +150,7 @@ Only the worker calls an LLM, through Amazon Bedrock in Sydney (D24).
 
 ## Database migrations
 
-- **Current state:** migrations through `0005` are applied to `production`, `dev` and `test`. The first `production` migration was applied manually on 2026-11-08, with the owner's approval.
+- **Current state:** migrations through `0006` are applied to `production` and `test`, and through `0005` to `dev`. The first `production` migration was applied manually on 2026-11-08, with the owner's approval.
 - **Production migrations run from GitHub Actions** once the deployment jobs exist in `ci.yml` (M0B), in the order migrate → worker → API. Render's pre-deploy commands are documented for paid services, so they aren't used.
 - **Expand/contract only:** a migration must stay compatible with the code currently running.
 - **Migrations use the direct URL** (pooling off), and the app uses the pooled one.

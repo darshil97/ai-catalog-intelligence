@@ -13,7 +13,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | M1 | Accounts, suppliers and batches | M0A | Completed |
 | M2 | File ingestion and storage | M0B, M1 | Completed |
 | M3 | Spreadsheet extraction | M2 | Completed |
-| M4 | Document and image text extraction | M3 | In Progress |
+| M4 | Document and image text extraction | M3 | Completed |
 | M5A | Image processing | M2, M0B | Not Started |
 | M5B | Image association | M3, M4, M5A | Not Started |
 | M6 | Product normalization | M3, M4 | Not Started |
@@ -277,7 +277,7 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 
 ## M4 Document and image text extraction
 
-**Status:** proposal approved by the owner on 2026-11-10. **In progress:** built and tested locally and against the Neon `test` branch. Not yet committed, deployed or accepted live. See the implementation notes below.
+**Status:** proposal approved by the owner on 2026-11-10. **Completed on 2026-11-10,** by the owner's decision, without a live acceptance run. Merged and deployed (CI run 35): migration `0006` applied to `production` (by CI) and `test`, and the worker and API run `dde1f89`. `dev` is still at `0005`. The pipeline was exercised on the owner's real photos locally, against the real model (below). See the implementation notes below.
 
 **Scope**
 - Text PDF extraction with page limits.
@@ -341,6 +341,8 @@ RapidOCR stays (D7).
 
 **Release notes**
 - The first CI run reported the API loading in 907 MB on Linux. The cause was the test, not the API: on Linux, `ru_maxrss` carries over from the process that starts a program, here the pytest process, which earlier tests had filled with OCR models. The same flaw explains M3's 165 MB. The test now reads the program's own peak (`VmHWM` in `/proc/self/status`), and the guard is back at 150 MB. On a Mac the API loads in about 78 MB, and the live API uses about 110 MB of Render's 512 MB.
+
+**Live acceptance:** not run. The owner marked M4 complete on 2026-11-10 before trying it on Vercel. Suggested check when convenient: the four selfie-stick photos alone (expect product `B094YFFSMY` with about 8 values, and no product from the logo), and `acme-price-list.csv` with `acme-specs.pdf` (expect capacity on `AK-1003` to show "differs").
 
 **Real photos through the whole extraction (gpt-oss-120b, image-only batch):** the label photo made product `B094YFFSMY` with 8 values, all found on the photo (name, net weight "113 gm", colour, brand, price, currency, dimensions, code). On the front photo the model called the logo "TY-G-O-T" a SKU; since the text is really on the box, the quote check let it through. A rule now stops it: a code found on a page makes a product only if it has a digit and at least four letters and digits, or is a barcode with a valid check digit. Photos with no code (the features side, the instructions) give no values in a batch without a spreadsheet; grouping them with their product is M5B. The owner chose on 2026-11-10 to leave them for M5B, rather than attach them whenever a batch names a single product, which could put one product's specs on another.
 
