@@ -55,14 +55,20 @@ class Observation(BaseModel):
     source_record_id: UUID | None = Field(None, description="The row it came from.")
     location: dict[str, Any] = Field(
         ...,
-        description="Where in the file: sheet (null for a CSV), sheet_index, row, column and "
-        "header. merged_from names the cell holding the value, for a merged cell.",
+        description="Where in the file. Spreadsheets: sheet (null for a CSV), sheet_index, row, "
+        "column and header, and merged_from for a merged cell. PDFs and photos: page (null for "
+        "a photo), method (text or ocr), quote (the text the value was read from), bbox (left, "
+        "top, right, bottom) and the page_width and page_height it is measured against.",
     )
     extractor: str = Field(..., description="What read it, with its version.")
     confidence: float | None = Field(
         None, description="How sure the column's mapping is, from 0 to 1."
     )
-    mapped_by: str = Field(..., description="How its column was recognised: known_name or llm.")
+    mapped_by: str = Field(
+        ...,
+        description="How it was read: known_name or llm for a spreadsheet column, llm for a "
+        "value read from a PDF or photo.",
+    )
 
 
 class ProductDetail(Product):
@@ -70,6 +76,11 @@ class ProductDetail(Product):
 
     observations: list[Observation] = Field(
         ..., description="Values grouped by attribute, then in file order."
+    )
+    differing_attributes: list[str] = Field(
+        ...,
+        description="Attribute codes whose sources don't all give the same value (ignoring "
+        "case and spacing). Every value is kept; none is chosen here.",
     )
 
 
@@ -108,7 +119,7 @@ class Sheet(BaseModel):
     mapping_source: str = Field(
         ...,
         description="How columns were mapped: known_names, saved (reused for this supplier), "
-        "llm, llm_failed, llm_capped or none.",
+        "llm, llm_failed, llm_capped, llm_budget (monthly LLM budget used) or none.",
     )
     mapping_message: str | None = Field(
         None, description="Why the LLM wasn't used when it was needed."
@@ -129,3 +140,42 @@ class SheetList(BaseModel):
 
     batch_id: UUID = Field(..., description="The batch.")
     items: list[Sheet] = Field(..., description="Sheets, in upload then sheet order.")
+
+
+class Document(BaseModel):
+    """A PDF or photo, how it was read, and what was found in it."""
+
+    source_file_id: UUID = Field(..., description="The file.")
+    source_file_name: str = Field(..., description="Its name.")
+    parent_file_id: UUID | None = Field(None, description="The ZIP or PDF it came from, if any.")
+    kind: str = Field(..., description="pdf or image.")
+    status: str = Field(..., description="read or skipped.")
+    skip_reason: str | None = Field(None, description="Why it wasn't read: unreadable or no_text.")
+    skip_message: str | None = Field(None, description="Why it wasn't read, for people.")
+    pages: int = Field(..., description="Pages in the file. A photo is one page.")
+    pages_with_text: int = Field(..., description="Pages where text was found.")
+    pages_ocr: int = Field(..., description="Pages read with OCR, such as scans and photos.")
+    pages_unreadable: int = Field(..., description="Pages that couldn't be read.")
+    characters: int = Field(..., description="Characters of text found.")
+    product_keys: list[str] = Field(..., description="Products whose values it gave.")
+    pages_without_product: int = Field(
+        ...,
+        description="Pages that named none of the batch's products, so weren't read for values.",
+    )
+    values_kept: int = Field(..., description="Values found on the page and kept.")
+    values_dropped: int = Field(
+        ..., description="Values the LLM gave that weren't on the page, or had no clear product."
+    )
+    llm_source: str = Field(
+        ...,
+        description="none, llm, llm_failed, llm_capped (the run's calls were used) or llm_budget "
+        "(this month's LLM budget was used).",
+    )
+    llm_message: str | None = Field(None, description="Why values weren't read, for people.")
+
+
+class DocumentList(BaseModel):
+    """A batch's PDFs and photos, in file order."""
+
+    batch_id: UUID = Field(..., description="The batch.")
+    items: list[Document] = Field(..., description="Files, in upload order.")

@@ -2,9 +2,18 @@
 
 from app.products.repository import (
     ProductNotFoundError,
+    differing_attributes,
     get_product,
+    list_documents,
     list_products,
     list_sheets,
 )
 
-__all__ = ["ProductNotFoundError", "get_product", "list_products", "list_sheets"]
+__all__ = [
+    "ProductNotFoundError",
+    "differing_attributes",
+    "get_product",
+    "list_documents",
+    "list_products",
+    "list_sheets",
+]

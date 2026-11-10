@@ -1,12 +1,18 @@
 import type { CellLocation } from "@/lib/types";
 
-/** Describes a place in a file for people: "Sheet1, row 14, column C". */
+/**
+ * Describes a place in a file for people: "Sheet1, row 14, column C", "page 2" or "photo, read
+ * by OCR".
+ */
 export function describeLocation(location: CellLocation | null): string {
   if (!location) return "";
   const parts: string[] = [];
   if (location.sheet) parts.push(location.sheet);
   if (location.row !== undefined) parts.push(`row ${location.row}`);
   if (location.column) parts.push(`column ${location.column}`);
+  if (location.page) parts.push(`page ${location.page}`);
+  if (location.page === null && location.method) parts.push("photo");
+  if (location.method === "ocr") parts.push("read by OCR");
   return parts.join(", ");
 }
 

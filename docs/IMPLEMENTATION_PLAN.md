@@ -13,7 +13,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | M1 | Accounts, suppliers and batches | M0A | Completed |
 | M2 | File ingestion and storage | M0B, M1 | Completed |
 | M3 | Spreadsheet extraction | M2 | Completed |
-| M4 | Document and image text extraction | M3 | Not Started |
+| M4 | Document and image text extraction | M3 | In Progress |
 | M5A | Image processing | M2, M0B | Not Started |
 | M5B | Image association | M3, M4, M5A | Not Started |
 | M6 | Product normalization | M3, M4 | Not Started |
@@ -277,6 +277,8 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 
 ## M4 Document and image text extraction
 
+**Status:** proposal approved by the owner on 2026-11-10. **In progress:** built and tested locally and against the Neon `test` branch. Not yet committed, deployed or accepted live. See the implementation notes below.
+
 **Scope**
 - Text PDF extraction with page limits.
 - Image extraction from PDFs.
@@ -292,6 +294,52 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 - No value exists without a source.
 - Malformed PDFs.
 - RapidOCR compared with Tesseract on sample images, with results recorded.
+
+**Approved decisions (2026-11-10):**
+- PDFs and photos add values to the batch's spreadsheet products. A batch with no spreadsheet products takes its products from codes found in its PDFs and photos, first N in file order (D33).
+- Photos are read with OCR (RapidOCR), then gpt-oss-120b reads values from the text. Claude Haiku isn't used: OCR is needed anyway, and checking values against OCR text keeps the no-invention rule. Switching photos to a vision model stays open if real photos show OCR missing packaging text.
+- The global LLM spend cap ($10 a month) moves forward from M7.
+- Tesseract is installed in the local conda environment only, for the comparison.
+
+**Implementation notes**
+- Migration `0006`: `ocr_results`, `document_files`, `products.origin` (`spreadsheet` or `document`), and an `llm_budget` mapping state for sheets. Expand-only.
+- The `ingest` pipeline gains two stages. `documents` reads every kept PDF and image, one job each: PDF pages with their own text are read with pdfplumber, and pages with under 40 characters are rendered and read with OCR (keeping whichever reading found more, and retrying an empty OCR reading at half resolution). `document_values` then goes through the pages in file order.
+- In a batch with spreadsheet products, a page is sent to the LLM only if it names one of them (by its key, SKU, model number or barcode, however punctuated), so discarded products cost no LLM calls (D13). In a batch without, every page is read, since codes only show up by reading.
+- Every value the LLM reports must quote text that is on the page, with the value inside the quote; what's stored is the page's own text. Each observation's location holds the page, the quote, and its box. Values that fail are dropped and reported.
+- Images inside PDFs become files of the batch, like ZIP entries (`page-1-image-1.jpg`): icons under 150 px are skipped and repeats kept once. They count toward the image limit in upload order.
+- `app/ocr`: an engine registry with `rapidocr` (production) and `tesseract` (comparison only). `app/ingest/documents`: page model, quote check, PDF reading. `app/llm/runner.py`: the monthly spend cap.
+- API: `GET /batches/{id}/documents`. `GET /products/{id}` adds `differing_attributes`: attributes whose sources disagree, ignoring only case and spacing. Nothing is resolved.
+- Frontend: a "PDFs and photos" panel on the batch page. The product page shows each value's page and quote, and a "differs" badge.
+- `backend/tools/compare_ocr.py` compares the engines.
+
+**OCR comparison (D7), 2026-11-10, generated images:** 32 images (4 texts in 8 conditions), scored exactly.
+
+| Condition | RapidOCR | Tesseract |
+|---|---|---|
+| Clean | 100% | 97% |
+| Small type | 100% | 97% |
+| Rotated 6–7° | 100% | 63% |
+| Blurred | 100% | 98% |
+| Low contrast | 100% | 98% |
+| Light on dark | 100% | 98% |
+| Noisy | 99% | 16% |
+| Heavy JPEG compression | 100% | 97% |
+| **All** | **100%** | **83%** |
+| Product codes read exactly | 32 of 32 | 27 of 32 |
+| Median time per image (Mac) | 174 ms | 111 ms |
+
+**Owner's photos, 2026-11-10:** four photos of a selfie-stick box (front, features side, spec panel with a printed label, and instructions).
+
+| Photo | RapidOCR | Tesseract |
+|---|---|---|
+| Spec panel and label | All 6 spec lines exact, plus the label: brand, colour, MRP, dimensions and the code `B094YFFSMY` | Spec lines garbled ("Solfie", "Hoight", "18,5 om"); the label missed entirely |
+| Features side | All 11 lines exact | Readable, with stray symbols |
+| Instructions (small type) | All 27 lines exact | 16 lines, many words wrong, some lines missing |
+| Front | 6 lines; the logo read as "TY-G-O-T" | 2 lines; the logo read as "Yrreot" |
+
+RapidOCR stays (D7).
+
+**Real photos through the whole extraction (gpt-oss-120b, image-only batch):** the label photo made product `B094YFFSMY` with 8 values, all found on the photo (name, net weight "113 gm", colour, brand, price, currency, dimensions, code). On the front photo the model called the logo "TY-G-O-T" a SKU; since the text is really on the box, the quote check let it through. A rule now stops it: a code found on a page makes a product only if it has a digit and at least four letters and digits, or is a barcode with a valid check digit. Photos with no code (the features side, the instructions) give no values in a batch without a spreadsheet; grouping them with their product is M5B. The owner chose on 2026-11-10 to leave them for M5B, rather than attach them whenever a batch names a single product, which could put one product's specs on another.
 
 ---
 
@@ -357,7 +405,7 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 - Titles, descriptions and bullet points from verified attributes.
 - LLM calls through LangChain, using gpt-oss-120b for text, with a per-task config entry. If LLM calls first arrive in M4, the setup moves there.
 - Prompts in template files.
-- Global LLM spend cap and `blocked_quota`.
+- `blocked_quota` for enrichment jobs. The global LLM spend cap itself arrived in M4.
 
 **Acceptance criteria**
 - Generated claims cite attributes.

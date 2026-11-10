@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter
 
 from app.api.dependencies import ActiveUser
-from app.api.schemas.products import ProductDetail, ProductList, SheetList
+from app.api.schemas.products import DocumentList, ProductDetail, ProductList, SheetList
 from app.api.services import products
 
 router = APIRouter(tags=["products"])
@@ -28,3 +28,9 @@ def get_product(product_id: UUID, profile: ActiveUser) -> dict[str, Any]:
 def list_sheets(batch_id: UUID, profile: ActiveUser) -> dict[str, Any]:
     """List a batch's sheets: how each column was mapped, and why a sheet wasn't used."""
     return products.list_sheets(profile, batch_id)
+
+
+@router.get("/batches/{batch_id}/documents", response_model=DocumentList)
+def list_documents(batch_id: UUID, profile: ActiveUser) -> dict[str, Any]:
+    """List a batch's PDFs and photos: how each was read, and what was found in it."""
+    return products.list_documents(profile, batch_id)

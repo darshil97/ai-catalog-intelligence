@@ -5,6 +5,12 @@
 SELECT id, response FROM model_runs
 WHERE owner_user_id = %(owner)s AND input_hash = %(input_hash)s AND status = 'succeeded';
 
+-- name: month_spend
+-- Every user's recorded LLM cost since the start of this calendar month (UTC).
+SELECT COALESCE(sum(cost_usd), 0)::float AS spent
+FROM model_runs
+WHERE created_at >= date_trunc('month', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
+
 -- name: insert_run
 -- Inserts nothing when the same request already succeeded, so the caller reads that one.
 INSERT INTO model_runs (owner_user_id, job_id, task, provider, model_id, prompt_version,

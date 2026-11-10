@@ -226,7 +226,8 @@ def get_ingest_config() -> dict[str, int]:
     """Return the worker's file checks.
 
     Keys: zip_max_entries, zip_max_total_bytes, zip_max_entry_bytes, zip_max_ratio,
-    zip_ratio_min_bytes, max_image_pixels, csv_sniff_bytes.
+    zip_ratio_min_bytes, max_image_pixels, csv_sniff_bytes, pdf_image_min_side,
+    pdf_max_images_per_file.
     """
     return {name: int(value) for name, value in get_config()["ingest"].items()}
 
@@ -255,14 +256,16 @@ def get_extraction_config() -> dict[str, Any]:
 def get_llm_config() -> dict[str, Any]:
     """Return LLM settings shared by every task.
 
-    Keys: backend, region, connect_timeout_seconds, prices (model ID to a dict with keys input
-    and output, in USD per million tokens).
+    Keys: backend, region, connect_timeout_seconds, monthly_spend_cap_usd (float, or None for
+    no cap), prices (model ID to a dict with keys input and output, in USD per million tokens).
     """
     section = get_config()["llm"]
+    cap = section.get("monthly_spend_cap_usd")
     return {
         "backend": str(section["backend"]),
         "region": str(section["region"]),
         "connect_timeout_seconds": int(section["connect_timeout_seconds"]),
+        "monthly_spend_cap_usd": None if cap in (None, "") else float(cap),
         "prices": {
             str(model): {"input": float(price["input"]), "output": float(price["output"])}
             for model, price in section["prices"].items()
@@ -292,3 +295,20 @@ def get_llm_task_config(task: str) -> dict[str, Any]:
         "timeout_seconds": int(section["timeout_seconds"]),
         "max_attempts": int(section["max_attempts"]),
     }
+
+
+def get_documents_config() -> dict[str, Any]:
+    """Return PDF and photo reading settings.
+
+    Keys: extractor_text, extractor_ocr, min_page_chars, render_dpi, ocr_engine,
+    ocr_min_confidence (float), max_llm_chars, max_llm_calls_per_run, max_notes_per_run,
+    min_key_chars_for_loose_match.
+    """
+    section = dict(get_config()["documents"])
+    text_keys = ("extractor_text", "extractor_ocr", "ocr_engine")
+    for name, value in section.items():
+        if name == "ocr_min_confidence":
+            section[name] = float(value)
+        elif name not in text_keys:
+            section[name] = int(value)
+    return section

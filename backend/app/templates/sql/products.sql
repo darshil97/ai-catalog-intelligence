@@ -52,3 +52,15 @@ JOIN batches b ON b.id = s.batch_id
 WHERE s.batch_id = %(batch_id)s AND b.owner_user_id = %(owner)s
 ORDER BY f.position, f.member_index, s.sheet_index
 LIMIT %(limit)s;
+
+-- name: list_documents
+SELECT d.source_file_id, f.original_name AS source_file_name, f.parent_file_id, d.kind,
+       d.status, d.skip_reason, d.skip_message, d.pages, d.pages_with_text, d.pages_ocr,
+       d.pages_unreadable, d.characters, d.product_keys, d.pages_without_product,
+       d.values_kept, d.values_dropped, d.llm_source, d.llm_message
+FROM document_files d
+JOIN source_files f ON f.id = d.source_file_id
+JOIN batches b ON b.id = d.batch_id
+WHERE d.batch_id = %(batch_id)s AND b.owner_user_id = %(owner)s
+ORDER BY f.position, f.member_index, f.id
+LIMIT %(limit)s;

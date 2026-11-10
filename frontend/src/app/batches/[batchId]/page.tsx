@@ -380,7 +380,7 @@ function RunPanel({ run }: { run: BatchRun }) {
         <p>
           {run.status === "queued"
             ? "Waiting for the worker to start. This can take a couple of minutes."
-            : "Checking files and reading spreadsheets…"}{" "}
+            : "Checking files and reading spreadsheets, PDFs and photos…"}{" "}
           {run.stages
             .map(
               (stage) =>

@@ -8,17 +8,28 @@ from app.llm.base import (
     get_chat_backend,
     register_chat_backend,
 )
-from app.llm.runner import LlmTaskError, TaskResult, extract_json, run_task
+from app.llm.runner import (
+    LlmBudgetError,
+    LlmTaskError,
+    TaskResult,
+    check_budget,
+    extract_json,
+    month_spend,
+    run_task,
+)
 
 __all__ = [
     "ChatBackend",
+    "LlmBudgetError",
     "LlmReply",
     "LlmRequest",
     "LlmTaskError",
     "LlmUnavailableError",
     "TaskResult",
+    "check_budget",
     "extract_json",
     "get_chat_backend",
+    "month_spend",
     "register_chat_backend",
     "run_task",
 ]

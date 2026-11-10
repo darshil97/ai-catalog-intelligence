@@ -41,3 +41,15 @@ def list_sheets(profile: Profile, batch_id: UUID) -> dict[str, Any]:
     except catalog.NotFoundError:
         not_found()
     return {"batch_id": batch_id, "items": items}
+
+
+def list_documents(profile: Profile, batch_id: UUID) -> dict[str, Any]:
+    """Return how each PDF and photo of a batch was read, or 404."""
+    limit = get_catalog_config()["max_list_items"]
+    try:
+        with database("list_documents") as conn:
+            catalog.get_batch(conn, profile.user_id, batch_id)
+            items = products.list_documents(conn, profile.user_id, batch_id, limit)
+    except catalog.NotFoundError:
+        not_found()
+    return {"batch_id": batch_id, "items": items}

@@ -8,6 +8,8 @@
   --accent-foreground: #ffffff;
   --danger: #b42318;
   --surface: #f5f5f5;
+  --warning: #8a5a00;
+  --warning-surface: #fff4d6;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,6 +22,8 @@
     --accent-foreground: #0d1117;
     --danger: #ff8a7a;
     --surface: #1f1f1f;
+    --warning: #f5c26b;
+    --warning-surface: #3a2c0d;
   }
 }
 
@@ -312,4 +316,9 @@ a {
   flex: 1 1 auto;
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.badge.warning {
+  background: var(--warning-surface);
+  color: var(--warning);
 }

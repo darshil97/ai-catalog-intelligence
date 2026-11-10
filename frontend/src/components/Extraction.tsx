@@ -5,6 +5,8 @@ import Link from "next/link";
 import { describeLocation, FLAG_TEXT } from "@/lib/location";
 import type {
   BatchRun,
+  DocumentFile,
+  DocumentList,
   ProductList,
   RunError,
   Sheet,
@@ -19,11 +21,13 @@ const MAPPING_TEXT: Record<Sheet["mapping_source"], string> = {
   llm: "Columns the names didn't settle were mapped by the LLM.",
   llm_failed: "",
   llm_capped: "",
+  llm_budget: "",
 };
 
 /**
- * What a finished run found in the batch's spreadsheets: products, how each sheet was read, and
- * rows that couldn't be used. Mounted once the run has finished, so it loads the final result.
+ * What a finished run found: products, how each spreadsheet, PDF and photo was read, and rows,
+ * pages or values that couldn't be used. Mounted once the run has finished, so it loads the
+ * final result.
  */
 export function Extraction({
   batchId,
@@ -34,14 +38,20 @@ export function Extraction({
 }) {
   const products = useApiResource<ProductList>(`/batches/${batchId}/products`);
   const sheets = useApiResource<SheetList>(`/batches/${batchId}/sheets`);
+  const documents = useApiResource<DocumentList>(
+    `/batches/${batchId}/documents`,
+  );
   const rowNotes = run.errors.filter((error) => error.location !== null);
+  const nothingToRead =
+    sheets.data?.items.length === 0 && documents.data?.items.length === 0;
 
-  if (sheets.data && sheets.data.items.length === 0) {
+  if (nothingToRead) {
     return (
       <section className="stack">
         <h2>Products</h2>
         <p className="muted">
-          This batch has no spreadsheets, so no products were read from it.
+          This batch has no spreadsheets, PDFs or photos with text, so no
+          products were read from it.
         </p>
       </section>
     );
@@ -92,17 +102,35 @@ export function Extraction({
         )}
       </section>
 
-      <section className="stack">
-        <h2>Sheets</h2>
-        {sheets.error && (
-          <p className="error" role="alert">
-            {sheets.error.message}
-          </p>
-        )}
-        {(sheets.data?.items ?? []).map((sheet) => (
-          <SheetCard key={sheet.id} sheet={sheet} />
-        ))}
-      </section>
+      {(sheets.data?.items.length ?? 0) > 0 && (
+        <section className="stack">
+          <h2>Sheets</h2>
+          {(sheets.data?.items ?? []).map((sheet) => (
+            <SheetCard key={sheet.id} sheet={sheet} />
+          ))}
+        </section>
+      )}
+      {sheets.error && (
+        <p className="error" role="alert">
+          {sheets.error.message}
+        </p>
+      )}
+
+      {(documents.data?.items.length ?? 0) > 0 && (
+        <section className="stack">
+          <h2>PDFs and photos</h2>
+          <ul className="list">
+            {(documents.data?.items ?? []).map((document) => (
+              <DocumentRow key={document.source_file_id} document={document} />
+            ))}
+          </ul>
+        </section>
+      )}
+      {documents.error && (
+        <p className="error" role="alert">
+          {documents.error.message}
+        </p>
+      )}
 
       {rowNotes.length > 0 && <RowNotes notes={rowNotes} />}
     </>
@@ -214,10 +242,49 @@ function SheetCard({ sheet }: { sheet: Sheet }) {
   );
 }
 
+function DocumentRow({ document }: { document: DocumentFile }) {
+  const read =
+    document.kind === "pdf"
+      ? `${document.pages} pages${document.pages_ocr ? `, ${document.pages_ocr} read by OCR` : ""}`
+      : "photo, read by OCR";
+  const found = [
+    document.values_kept ? `${document.values_kept} values kept` : "",
+    document.values_dropped
+      ? `${document.values_dropped} not found on the page and dropped`
+      : "",
+    document.pages_without_product
+      ? `${document.pages_without_product} ${document.kind === "pdf" ? "pages" : "photo"} named no product`
+      : "",
+  ].filter(Boolean);
+  return (
+    <li>
+      <span>
+        {document.parent_file_id ? "↳ " : ""}
+        {document.source_file_name}{" "}
+        <span className="badge">
+          {document.status === "read" ? "read" : "not read"}
+        </span>
+      </span>
+      <span className="muted">
+        {read}
+        {document.product_keys.length > 0 &&
+          ` · products: ${document.product_keys.join(", ")}`}
+        {found.length > 0 && ` · ${found.join("; ")}`}
+      </span>
+      {document.skip_message && (
+        <p className="error file-reason">{document.skip_message}</p>
+      )}
+      {document.llm_message && (
+        <p className="error file-reason">{document.llm_message}</p>
+      )}
+    </li>
+  );
+}
+
 function RowNotes({ notes }: { notes: RunError[] }) {
   return (
     <section className="stack">
-      <h2>Rows and cells that weren&apos;t used</h2>
+      <h2>Rows, pages and values that weren&apos;t used</h2>
       <ul className="list">
         {notes.map((note, index) => (
           <li key={`${note.created_at}-${index}`}>

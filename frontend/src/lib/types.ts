@@ -103,7 +103,8 @@ export type RunError = {
   created_at: string;
 };
 
-// Where a value was read from. `sheet` is null for a CSV.
+// Where a value was read from. Spreadsheets give sheet (null for a CSV), row and column; PDFs
+// and photos give page (null for a photo), the quote it was read from, and its box.
 export type CellLocation = {
   sheet?: string | null;
   sheet_index?: number;
@@ -111,6 +112,12 @@ export type CellLocation = {
   column?: string;
   header?: string;
   merged_from?: string;
+  page?: number | null;
+  method?: "text" | "ocr";
+  quote?: string;
+  bbox?: [number, number, number, number] | null;
+  page_width?: number;
+  page_height?: number;
 };
 
 export type Product = {
@@ -146,7 +153,10 @@ export type Observation = {
   mapped_by: "known_name" | "llm";
 };
 
-export type ProductDetail = Product & { observations: Observation[] };
+export type ProductDetail = Product & {
+  observations: Observation[];
+  differing_attributes: string[];
+};
 
 export type SheetColumn = {
   index: number;
@@ -178,7 +188,8 @@ export type Sheet = {
     | "saved"
     | "llm"
     | "llm_failed"
-    | "llm_capped";
+    | "llm_capped"
+    | "llm_budget";
   mapping_message: string | null;
   row_count: number;
   rows_without_identifier: number;
@@ -188,3 +199,26 @@ export type Sheet = {
 };
 
 export type SheetList = { batch_id: string; items: Sheet[] };
+
+export type DocumentFile = {
+  source_file_id: string;
+  source_file_name: string;
+  parent_file_id: string | null;
+  kind: "pdf" | "image";
+  status: "read" | "skipped";
+  skip_reason: string | null;
+  skip_message: string | null;
+  pages: number;
+  pages_with_text: number;
+  pages_ocr: number;
+  pages_unreadable: number;
+  characters: number;
+  product_keys: string[];
+  pages_without_product: number;
+  values_kept: number;
+  values_dropped: number;
+  llm_source: "none" | "llm" | "llm_failed" | "llm_capped" | "llm_budget";
+  llm_message: string | null;
+};
+
+export type DocumentList = { batch_id: string; items: DocumentFile[] };

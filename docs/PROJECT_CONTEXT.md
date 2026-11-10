@@ -7,7 +7,7 @@
 | **Current status** | **M0A, M0B and M1 complete.** Everything below describes the planned system unless listed as implemented here. |
 | **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline), job queue and on-demand EC2 worker, CI and deploys. **M1:** Neon Auth token checks, profiles, allowlist and waitlist, usage ledger and limits, supplier and batch CRUD with UI, admin-only test runs. **M2:** direct-to-S3 uploads with size and checksum checks, duplicate detection, safe ZIP expansion, worker file checks, batch processing with run progress. **M3:** CSV and XLSX reading, header detection, column mapping by known names then gpt-oss-120b with each supplier's layout remembered (D32), identifier cleanup, products and attribute observations traced to file, sheet, row and column, the first-N product limit, and product and sheet views. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
 | **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0005` are applied to `production`, `dev` and `test`. |
-| **Next module** | **M4 Document and image text extraction**: needs a proposal and approval. Open from M1: admin-only test runs are unreachable, because Neon Auth tokens never carry the admin role (see [M1 notes](IMPLEMENTATION_PLAN.md#m1-implementation-notes)). |
+| **Next module** | **M4 Document and image text extraction**: approved on 2026-11-10 and built (D33). Still to do: commit, deploy, and accept live (see [M4](IMPLEMENTATION_PLAN.md#m4-document-and-image-text-extraction)). Open from M1: admin-only test runs are unreachable, because Neon Auth tokens never carry the admin role (see [M1 notes](IMPLEMENTATION_PLAN.md#m1-implementation-notes)). |
 | **Last updated** | 2026-11-10 |
 
 Related documents: [Implementation plan](IMPLEMENTATION_PLAN.md) · [Database schema](DATABASE_SCHEMA.md) · [Decisions](DECISIONS.md) · [Deployment](DEPLOYMENT.md) · [Glossary](GLOSSARY.md)
@@ -151,9 +151,11 @@ ai-catalog-intelligence/
         ├── worker/               # loop, heartbeat, PowerController  [worker only]
         ├── catalog/              # suppliers, batches, products, attribute definitions
         ├── ingest/               # file kinds, safe ZIP expansion
-        │   └── spreadsheet/      # readers (csv, xlsx), header detection, column mapping
+        │   ├── spreadsheet/      # readers (csv, xlsx), header detection, column mapping
+        │   └── documents/        # PDF pages, quote check, values from PDFs and photos
         ├── products/             # products and observations, read by the API  [shared]
-        ├── llm/                  # backends (bedrock, fake), prompts, model_runs  [worker only]
+        ├── llm/                  # backends (bedrock, fake), prompts, model_runs, spend cap  [worker only]
+        ├── ocr/                  # OCR engines: rapidocr, tesseract (comparison only)  [worker only]
         ├── vision/               # phash, embedders/, ocr/, clustering  [worker only]
         ├── matching/signals/     # image↔SKU evidence
         ├── normalization/        # units, categories, mapping (deterministic)
@@ -358,7 +360,7 @@ Google-only at launch (D27): a token without a verified email is refused. Roles 
 | Global cap | Example | When reached |
 |---|---|---|
 | EC2 hours per month | 30 | New work waits, and the UI says capacity is reached |
-| LLM spend per month | $10 | Enrichment jobs enter `blocked_quota` |
+| LLM spend per month | $10 | LLM steps are skipped and say so; the rest of processing continues (enforced from M4) |
 | Total users | 25 | New sign-ups see a waitlist message |
 | `processing_enabled` | true | Emergency stop |
 | `signups_enabled` | **false until the owner turns it on, M7 at the earliest** | Only allowlisted emails can use the app. Everyone else sees a waitlist message. |
