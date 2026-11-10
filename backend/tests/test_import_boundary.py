@@ -7,9 +7,7 @@ from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[1]
 # Render's free tier allows 512 MB. This leaves room for real work on top of the imports.
-# CI measures more than Render uses: it installs the worker's packages too, and Linux reports a
-# higher peak than macOS. The live API used about 110 MB on 2026-11-10, when CI measured 165 MB.
-API_IMPORT_CEILING_MB = 200
+API_IMPORT_CEILING_MB = 150
 
 BLOCK_HEAVY_IMPORTS = """
     import sys
@@ -48,9 +46,15 @@ def test_api_loads_without_heavy_packages_and_within_memory_ceiling() -> None:
 
         import app.api.main
 
-        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        # macOS reports bytes, and Linux reports kilobytes.
-        print(peak / (1024 * 1024) if sys.platform == "darwin" else peak / 1024)
+        # On Linux, ru_maxrss carries over from the parent that started this process, here the
+        # pytest process, which earlier tests may have filled with OCR models. VmHWM is this
+        # program's own peak. macOS has no /proc, and its ru_maxrss starts fresh (in bytes).
+        try:
+            with open("/proc/self/status") as status:
+                hwm = next(line for line in status if line.startswith("VmHWM:"))
+            print(int(hwm.split()[1]) / 1024)
+        except OSError:
+            print(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1024 * 1024))
         """
     )
     assert result.returncode == 0, result.stderr

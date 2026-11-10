@@ -267,7 +267,7 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 - An image-only batch completes with no products. Products from images come with M4 and M5B.
 
 **Release notes**
-- The first CI run failed one check: loading the API peaked at 165 MB on Linux, over the test's 150 MB guard. The live API uses about 110 MB of Render's 512 MB, so the guard was raised to 200 MB.
+- The first CI run failed one check: loading the API peaked at 165 MB on Linux, over the test's 150 MB guard, so the guard was raised to 200 MB. M4 found the real cause (see M4's release notes): the test measured the pytest process's memory, not the API's. The guard is back at 150 MB.
 - The fix after it changed only a test, so CI skipped the worker deploy (it compared with the previous push). The worker was deployed by hand over Systems Manager, and CI now compares with the last fully successful run.
 - `dev` was migrated through `run_sql` with the SQL Alembic generates, because local Alembic runs were blocked in this session.
 
@@ -338,6 +338,9 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 | Front | 6 lines; the logo read as "TY-G-O-T" | 2 lines; the logo read as "Yrreot" |
 
 RapidOCR stays (D7).
+
+**Release notes**
+- The first CI run reported the API loading in 907 MB on Linux. The cause was the test, not the API: on Linux, `ru_maxrss` carries over from the process that starts a program, here the pytest process, which earlier tests had filled with OCR models. The same flaw explains M3's 165 MB. The test now reads the program's own peak (`VmHWM` in `/proc/self/status`), and the guard is back at 150 MB. On a Mac the API loads in about 78 MB, and the live API uses about 110 MB of Render's 512 MB.
 
 **Real photos through the whole extraction (gpt-oss-120b, image-only batch):** the label photo made product `B094YFFSMY` with 8 values, all found on the photo (name, net weight "113 gm", colour, brand, price, currency, dimensions, code). On the front photo the model called the logo "TY-G-O-T" a SKU; since the text is really on the box, the quote check let it through. A rule now stops it: a code found on a page makes a product only if it has a digit and at least four letters and digits, or is a barcode with a valid check digit. Photos with no code (the features side, the instructions) give no values in a batch without a spreadsheet; grouping them with their product is M5B. The owner chose on 2026-11-10 to leave them for M5B, rather than attach them whenever a batch names a single product, which could put one product's specs on another.
 
