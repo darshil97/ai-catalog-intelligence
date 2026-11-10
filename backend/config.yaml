@@ -117,6 +117,11 @@ ingest:
   max_image_pixels: 50000000
   # How much of a CSV is read to check it's text.
   csv_sniff_bytes: 65536
+  # Images inside a PDF are kept as files of their own, like ZIP entries. Smaller ones are
+  # icons and decoration, and are left out uncounted. Repeats, such as a logo on every page,
+  # are kept once.
+  pdf_image_min_side: 150
+  pdf_max_images_per_file: 50
 
 # Reading spreadsheets into products (M3).
 extraction:
@@ -176,12 +181,36 @@ extraction:
     supplier_category: [category, product category, category name, product type, type, range,
                         collection, department]
 
+# Reading PDFs and photos into products (M4).
+documents:
+  # Stored on every observation, so a later change to how text is read is traceable.
+  extractor_text: pdf_text+llm@1
+  extractor_ocr: ocr+llm@1
+  # A PDF page with fewer characters than this is treated as scanned and read with OCR.
+  min_page_chars: 40
+  # Resolution scanned pages are rendered at for OCR.
+  render_dpi: 200
+  # OCR engine, from the registry in app/ocr. Lines below this confidence are dropped.
+  ocr_engine: rapidocr
+  ocr_min_confidence: 0.5
+  # Characters of a page or photo sent to the LLM. Longer text is cut, and the cut reported.
+  max_llm_chars: 12000
+  # LLM calls allowed in one run for reading values. Pages past this are reported, not read.
+  max_llm_calls_per_run: 80
+  # Value problems reported per batch. More than this are counted only.
+  max_notes_per_run: 40
+  # Product keys shorter than this must match a whole word, so "12" can't match "1200 ml".
+  min_key_chars_for_loose_match: 4
+
 # LLM calls go through LangChain to Amazon Bedrock (D24), from the worker only.
 llm:
   # bedrock, or fake for tests.
   backend: ${LLM_BACKEND:-bedrock}
   region: ${AWS_REGION:-ap-southeast-2}
   connect_timeout_seconds: 5
+  # Every user's calls together. Once this month's recorded cost reaches it, LLM steps are
+  # skipped and say so, and the rest of processing carries on.
+  monthly_spend_cap_usd: 10
   # One entry per task, so moving a task to another model is a change here only.
   tasks:
     column_mapping:
@@ -192,6 +221,14 @@ llm:
       temperature: 0
       timeout_seconds: 60
       # Calls made for one request, counting retries after an unusable reply.
+      max_attempts: 2
+    document_attributes:
+      model_id: openai.gpt-oss-120b-1:0
+      prompt: extraction/document_attributes
+      prompt_version: "1"
+      max_tokens: 6000
+      temperature: 0
+      timeout_seconds: 90
       max_attempts: 2
   # USD per million tokens, used to record what each call cost.
   prices:
@@ -249,6 +286,11 @@ pipelines:
       job_type: ingest_finalize
     - stage: extract
       job_type: extract_select
+    # PDFs and photos: text is read one file per job, then values are read in file order.
+    - stage: documents
+      job_type: documents_plan
+    - stage: document_values
+      job_type: document_values
 
 # Admin-only diagnostic runs of the no-op pipeline.
 test_runs:

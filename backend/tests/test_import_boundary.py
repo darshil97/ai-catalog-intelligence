@@ -16,7 +16,9 @@ BLOCK_HEAVY_IMPORTS = """
 
     HEAVY = {"torch", "torchvision", "open_clip", "cv2", "PIL", "pandas", "numpy",
              "onnxruntime", "rapidocr", "rapidocr_onnxruntime", "pypdf", "boto3",
-             "openpyxl", "defusedxml", "jinja2", "langchain_aws", "langchain_core"}
+             "openpyxl", "defusedxml", "jinja2", "langchain_aws", "langchain_core",
+             "pdfplumber", "pdfminer", "pypdfium2", "rapidocr", "onnxruntime", "shapely",
+             "pytesseract"}
 
     class Blocker:
         def find_spec(self, name, path=None, target=None):
@@ -80,7 +82,8 @@ def test_worker_does_not_need_web_packages() -> None:
         assert "fastapi" not in sys.modules
         assert "starlette" not in sys.modules
         names = __import__("app.jobs.base", fromlist=["x"]).get_registered_handler_names()
-        assert {"noop", "ingest_file", "extract_select", "extract_rows"} <= names
+        assert {"noop", "ingest_file", "extract_select", "extract_rows", "documents_plan",
+                "documents_read", "document_values"} <= names
         """
     )
     assert result.returncode == 0, result.stderr

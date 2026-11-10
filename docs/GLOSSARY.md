@@ -62,6 +62,7 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Saved mapping** | A supplier's column mapping, remembered by its header layout and reused. | The same template next month needs no LLM call. |
 | **Header fingerprint** | A hash identifying a header layout, used to find a saved mapping. | Changes if a column is added. |
 | **Product key** | The cleaned identifier that makes rows one product. | "ab-77" and "AB-77 " are both `AB-77`. |
+| **Differs** | An attribute whose sources give different values. All are kept, and none is chosen. | The sheet says 1.5 L, the PDF 1.2 L. |
 | **Match key** | The product key without punctuation, for looser matching later. | `AB77`. |
 | **Source record** | One spreadsheet row as the file gave it, with every cell. | Row 14, including unmapped columns. |
 | **GTIN** | The number under a barcode, also called EAN or UPC. Its last digit checks the rest. | `4006381333931`. |
@@ -93,6 +94,9 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Token (AI)** | A small piece of text used to measure and bill LLM use. | Price is per million tokens. Different from a JWT. |
 | **Schema validation** | Checking data matches an expected structure. | Rejecting a malformed LLM response. |
 | **Model run** | The record of one LLM call: model, tokens, cost and result. | One row per column-mapping call. |
+| **Quote check** | Keeping an LLM-reported value only if its quoted text is on the page and contains the value. | "Capacity: 1.2 L" must be on page 2. |
+| **Scanned page** | A PDF page that is a picture of text, with little or no text of its own. Read with OCR. | A spec sheet run through a scanner. |
+| **Spend cap** | The most all users' LLM calls may cost in a month. Once reached, LLM steps are skipped. | $10. |
 | **Prompt injection** | Text in a document trying to give instructions to the AI. | A PDF saying "ignore your rules". Supplier text is treated as data. |
 
 ## Infrastructure

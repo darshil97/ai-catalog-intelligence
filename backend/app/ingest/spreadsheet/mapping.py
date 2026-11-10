@@ -36,6 +36,7 @@ SOURCE_SAVED = "saved"
 SOURCE_LLM = "llm"
 SOURCE_LLM_FAILED = "llm_failed"
 SOURCE_LLM_CAPPED = "llm_capped"
+SOURCE_LLM_BUDGET = "llm_budget"
 
 # How one column was mapped.
 COLUMN_KNOWN_NAME = "known_name"
@@ -144,11 +145,15 @@ class LlmAnswer:
 
 
 class LlmMappingError(Exception):
-    """The LLM gave no usable mapping. `calls` is how many calls were made trying."""
+    """The LLM gave no usable mapping. `calls` is how many calls were made trying.
 
-    def __init__(self, message: str, calls: int) -> None:
+    `budget` is True when no call was made because the monthly LLM spend cap was reached.
+    """
+
+    def __init__(self, message: str, calls: int, *, budget: bool = False) -> None:
         super().__init__(message)
         self.calls = calls
+        self.budget = budget
 
 
 def make_parser(
@@ -335,6 +340,11 @@ def map_sheet(
         reply = ask_llm(variables, parser)
     except LlmMappingError as exc:
         logger.warning("Column mapping fell back to known names: error=%s", exc)
+        if exc.budget:
+            return without_llm(
+                SOURCE_LLM_BUDGET,
+                "This month's LLM budget has been used, so only known column names were used.",
+            )
         return without_llm(
             SOURCE_LLM_FAILED,
             "The LLM couldn't be used for this sheet, so only known column names were used.",

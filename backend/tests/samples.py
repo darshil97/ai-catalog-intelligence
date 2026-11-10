@@ -145,3 +145,99 @@ def workbook(
                 data = text.encode()
             target.writestr(info, data)
     return patched.getvalue()
+
+
+def text_image(lines: list[str], width: int = 900, line_height: int = 70) -> bytes:
+    """A JPEG photo-like image with the given lines of black text on white, for OCR."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    image = Image.new("RGB", (width, line_height * (len(lines) + 1)), "white")
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default(size=40)
+    for index, line in enumerate(lines):
+        draw.text((30, 30 + index * line_height), line, fill="black", font=font)
+    out = io.BytesIO()
+    image.save(out, format="JPEG", quality=95)
+    return out.getvalue()
+
+
+def text_pdf(
+    pages: list[list[str]],
+    *,
+    images: dict[int, list[bytes]] | None = None,
+    scanned: dict[int, list[str]] | None = None,
+) -> bytes:
+    """A real PDF built by hand: each page's lines as text, top to bottom.
+
+    Args:
+        images: Page index to JPEG images drawn on that page (embedded images).
+        scanned: Page index to lines drawn as a full-page picture instead of text, as a scanner
+            would produce. Those pages hold no text of their own.
+    """
+    from PIL import Image
+
+    images = dict(images or {})
+    for index, lines in (scanned or {}).items():
+        images[index] = [text_image(lines, width=1200, line_height=80), *images.get(index, [])]
+
+    objects: list[bytes] = []
+
+    def add(body: bytes) -> int:
+        objects.append(body)
+        return len(objects)
+
+    font = add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    page_ids = []
+    # The page tree's number is only known at the end, so pages point at a placeholder for it.
+    page_entries: list[tuple[bytes, list[tuple[int, int, int]]]] = []
+    for index, lines in enumerate(pages):
+        ops = [b"BT /F1 12 Tf 14 TL 50 760 Td"]
+        for line in lines:
+            escaped = line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+            ops.append(f"({escaped}) Tj T*".encode("latin-1"))
+        ops.append(b"ET")
+        placed = []
+        for number, jpeg in enumerate(images.get(index, [])):
+            picture = Image.open(io.BytesIO(jpeg))
+            xobject = add(
+                f"<< /Type /XObject /Subtype /Image /Width {picture.width} /Height "
+                f"{picture.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter "
+                f"/DCTDecode /Length {len(jpeg)} >>\nstream\n".encode()
+                + jpeg
+                + b"\nendstream"
+            )
+            placed.append((xobject, picture.width, picture.height))
+            draw_w = 500
+            draw_h = int(500 * picture.height / picture.width)
+            y = 700 - number * (draw_h + 20) if index not in (scanned or {}) else 300
+            ops.append(f"q {draw_w} 0 0 {draw_h} 50 {y} cm /Im{number} Do Q".encode())
+        page_entries.append((b"\n".join(ops), placed))
+    for content, placed in page_entries:
+        stream = add(b"<< /Length %d >>\nstream\n" % len(content) + content + b"\nendstream")
+        xobjects = " ".join(f"/Im{n} {obj} 0 R" for n, (obj, _, _) in enumerate(placed))
+        page_ids.append(
+            add(
+                f"<< /Type /Page /Parent PAGES 0 R /MediaBox [0 0 612 792] /Contents {stream} 0 R "
+                f"/Resources << /Font << /F1 {font} 0 R >> /XObject << {xobjects} >> >> >>".encode()
+            )
+        )
+    pages_id = add(
+        f"<< /Type /Pages /Kids [{' '.join(f'{p} 0 R' for p in page_ids)}] "
+        f"/Count {len(page_ids)} >>".encode()
+    )
+    catalog = add(f"<< /Type /Catalog /Pages {pages_id} 0 R >>".encode())
+    objects = [body.replace(b"PAGES 0 R", f"{pages_id} 0 R".encode()) for body in objects]
+
+    out = io.BytesIO()
+    out.write(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(out.tell())
+        out.write(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+    xref = out.tell()
+    out.write(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode())
+    for offset in offsets:
+        out.write(f"{offset:010d} 00000 n \n".encode())
+    trailer = f"trailer\n<< /Size {len(objects) + 1} /Root {catalog} 0 R >>\n"
+    out.write(f"{trailer}startxref\n{xref}\n%%EOF\n".encode())
+    return out.getvalue()

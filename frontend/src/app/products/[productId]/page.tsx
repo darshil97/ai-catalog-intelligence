@@ -59,15 +59,25 @@ function ProductView() {
       ))}
       <h2>What the files say</h2>
       <p className="muted">
-        Each value is exactly as written in the file. Where a product appears
-        on several rows, every row&apos;s value is listed.
+        Each value is exactly as written in the file. Where the files give
+        more than one value for an attribute, every one is listed and marked
+        &ldquo;differs&rdquo;; none is chosen here.
       </p>
-      <ObservationTable observations={data.observations} />
+      <ObservationTable
+        observations={data.observations}
+        differing={new Set(data.differing_attributes)}
+      />
     </div>
   );
 }
 
-function ObservationTable({ observations }: { observations: Observation[] }) {
+function ObservationTable({
+  observations,
+  differing,
+}: {
+  observations: Observation[];
+  differing: Set<string>;
+}) {
   if (observations.length === 0) {
     return <p className="muted">Nothing was read for this product.</p>;
   }
@@ -79,13 +89,21 @@ function ObservationTable({ observations }: { observations: Observation[] }) {
             <th scope="col">Attribute</th>
             <th scope="col">Value</th>
             <th scope="col">From</th>
-            <th scope="col">Column recognised by</th>
+            <th scope="col">Read by</th>
           </tr>
         </thead>
         <tbody>
           {observations.map((observation) => (
             <tr key={observation.id}>
-              <td>{observation.attribute_name}</td>
+              <td>
+                {observation.attribute_name}
+                {differing.has(observation.attribute_code) && (
+                  <>
+                    {" "}
+                    <span className="badge warning">differs</span>
+                  </>
+                )}
+              </td>
               <td className="value">{observation.raw_value}</td>
               <td>
                 {observation.source_file_name}
@@ -95,12 +113,17 @@ function ObservationTable({ observations }: { observations: Observation[] }) {
                   {observation.location.header
                     ? ` ("${observation.location.header}")`
                     : ""}
+                  {observation.location.quote
+                    ? `: “${observation.location.quote}”`
+                    : ""}
                 </span>
               </td>
               <td>
-                {observation.mapped_by === "llm"
-                  ? `LLM, ${Math.round((observation.confidence ?? 0) * 100)}% sure`
-                  : "Known name"}
+                {observation.location.quote
+                  ? "LLM, checked against the text"
+                  : observation.mapped_by === "llm"
+                    ? `LLM, ${Math.round((observation.confidence ?? 0) * 100)}% sure`
+                    : "Known name"}
               </td>
             </tr>
           ))}

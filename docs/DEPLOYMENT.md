@@ -140,6 +140,13 @@ Only the worker calls an LLM, through Amazon Bedrock in Sydney (D24).
 - **Render and Vercel:** nothing. Never add the Bedrock key to either.
 - **Tests:** `LLM_BACKEND=fake` is set by the test setup, so no test calls a model.
 - **Live model check:** `LIVE_LLM_TEST=1 uv run pytest tests/test_llm_live.py` sends one made-up price list to the real model, for a fraction of a cent.
+- **Spend cap:** `llm.monthly_spend_cap_usd` (default $10) is checked against this month's recorded cost in `model_runs`, for all users together. Once reached, LLM steps are skipped and the page says so.
+
+## OCR (M4)
+
+- **Worker:** RapidOCR, with its models shipped inside the Python package. Nothing is downloaded at runtime.
+- **Tesseract** is for the engine comparison only. It's installed in the local `ai-catalog` conda environment (`conda install -c conda-forge tesseract`), never on the worker.
+- **Comparison:** from `backend/`, run `python tools/compare_ocr.py --photos ../samples/photos --out ocr-comparison.md`.
 
 ## Database migrations
 

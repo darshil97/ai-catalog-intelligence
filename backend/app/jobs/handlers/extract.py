@@ -52,7 +52,7 @@ from app.jobs import queue
 from app.jobs.base import JobContext, register_handler
 from app.jobs.errors import PermanentJobError, TransientJobError
 from app.jobs.models import ChunkSpec, Job, JobOutcome
-from app.llm import LlmTaskError, run_task
+from app.llm import LlmBudgetError, LlmTaskError, run_task
 from app.storage import ObjectTooLargeError, StorageError, get_object_store
 from app.usage import effective_limits
 from app.utils.logger import get_logger
@@ -516,7 +516,8 @@ class _Mapper:
                 to_record=MappingAnswer.model_dump,
             )
         except LlmTaskError as exc:
-            raise LlmMappingError(str(exc), exc.calls) from exc
+            budget = isinstance(exc, LlmBudgetError)
+            raise LlmMappingError(str(exc), exc.calls, budget=budget) from exc
         return LlmAnswer(answer=result.value, model_run_id=result.model_run_id, calls=result.calls)
 
 

@@ -54,7 +54,8 @@ def test_mixed_batch_is_checked_and_expanded(
 
     files = list_files(client, alice, batch_id)
     assert files["prices.csv"]["status"] == "ingested"
-    assert files["specs.pdf"]["details"] == {"pages": 2}
+    # A PDF also records the images kept from inside it; this one has none.
+    assert files["specs.pdf"]["details"] == {"pages": 2, "images": 0, "images_over_limit": 0}
     assert files["fake.png"]["rejection_reason"] == "wrong_type"
     assert files["photos.zip"]["status"] == "ingested"
     assert files["photos.zip"]["details"] == {

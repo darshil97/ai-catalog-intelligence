@@ -41,6 +41,37 @@ class LlmTaskError(Exception):
         self.calls = calls
 
 
+class LlmBudgetError(LlmTaskError):
+    """This month's LLM spend has reached the cap, so no call was made."""
+
+    def __init__(self, spent: float, cap: float) -> None:
+        super().__init__(f"Monthly LLM spend ${spent:.2f} has reached the ${cap:.2f} cap", 0)
+        self.spent = spent
+        self.cap = cap
+
+
+def month_spend() -> float:
+    """Return every user's recorded LLM cost this calendar month, in USD."""
+    with get_pool().connection() as conn:
+        row = conn.execute(query("llm", "month_spend")).fetchone()
+    return float(row["spent"]) if row else 0.0
+
+
+def check_budget() -> None:
+    """Refuse a new call once this month's spend has reached the cap.
+
+    Raises:
+        LlmBudgetError: if the cap is reached.
+    """
+    cap = get_llm_config()["monthly_spend_cap_usd"]
+    if cap is None:
+        return
+    spent = month_spend()
+    if spent >= cap:
+        logger.warning("LLM call refused: reason=monthly_cap spent=%.4f cap=%.2f", spent, cap)
+        raise LlmBudgetError(spent, cap)
+
+
 @dataclass(frozen=True)
 class TaskResult[T]:
     """A task's checked result.
@@ -151,6 +182,8 @@ def run_task[T](
         to_record: Turns the result into the JSON stored for reuse. `parse` must accept it.
 
     Raises:
+        LlmBudgetError: if this month's spend has reached the cap. A stored reply is still
+            reused, since it costs nothing.
         LlmTaskError: if no usable reply came back within the task's attempts.
     """
     config = get_llm_task_config(task)
@@ -181,6 +214,7 @@ def run_task[T](
             logger.info("LLM reply reused: task=%s model_run_id=%s", task, stored["id"])
             return TaskResult(value=value, model_run_id=stored["id"], calls=0)
 
+    check_budget()
     backend = get_chat_backend()
     last_error = "No attempt was made"
     calls = 0

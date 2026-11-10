@@ -5,6 +5,7 @@
 - **Accounts and catalog structure** (`user_profiles`, `user_limits`, `usage_ledger`, `suppliers`, `batches`, plus owner foreign keys on `pipeline_runs` and `jobs`): migration `0003` (M1), applied to `production`, `dev` and `test`. It refuses to run while queue rows exist whose owners have no profile.
 
 - **Spreadsheet extraction** (`categories`, `attribute_definitions`, `model_runs`, `column_mappings`, `spreadsheet_sheets`, `source_records`, `products`, `attribute_observations`): migration `0005` (M3), applied to `production`, `dev` and `test`.
+- **Document extraction** (`ocr_results`, `document_files`, `products.origin`): migration `0006` (M4), applied to `test` only so far.
 
 This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
@@ -148,6 +149,8 @@ One spreadsheet row or one PDF page or block.
 
 **Constraint:** `UNIQUE(source_file_id, record_type, location)`.
 
+**M4:** `page` rows hold one PDF page or photo: `location` is `{"page": n}` (null for a photo), and `raw_data` holds `method` (`text` or `ocr`), `width`, `height`, `confidence` and `lines` (text with a box each).
+
 **As built (M3):** a spreadsheet row's `location` is `{"sheet", "sheet_index", "row"}`, with `sheet` null for a CSV. Its `raw_data` holds every non-empty cell by column letter under `cells`, mapped or not, plus `formats`, `flags` and `merged_from` where they apply. Only rows of kept products are stored. A row's ID is derived from its sheet and row number, so reading it twice stores it once.
 
 ### `spreadsheet_sheets`
@@ -215,6 +218,8 @@ These make the schema category-independent. Home & Kitchen is seed data, not cod
 
 Products beyond the POC limit get no row. Their counts are stored on `pipeline_runs`.
 
+**M4:** `origin` (`spreadsheet` or `document`) says where a product came from. Document products exist only in batches without spreadsheet products.
+
 **As built (M3):** also `key_source` (`sku`, `model_number` or `gtin`), `match_key` (the key without punctuation, for M5B), `identifier_flags` JSONB (`scientific_notation`, `precision_lost`, `invalid_gtin`) and `source_order` (position in file order). `category_id` stays null until M6.
 
 ---
@@ -250,6 +255,8 @@ Three layers keep the original, the cleaned value and the chosen value separate:
 **Constraint:** `UNIQUE(product_id, attribute_id, source_file_id, location, extractor)`, which makes re-runs idempotent.
 
 **As built (M3):** a spreadsheet observation's `location` is `{"sheet", "sheet_index", "row", "column", "header"}`, plus `merged_from` for a cell filled from a merged range. `extractor` is `spreadsheet@1`. `model_run_id` and `confidence` are set when the LLM decided what the column means; a known column name gives confidence 1 and no model run. The value is never the LLM's.
+
+**M4:** an observation from a PDF or photo has `extractor` `pdf_text+llm@1` or `ocr+llm@1`, its page record as `source_record_id`, and a `location` of `{"page", "method", "quote", "bbox", "page_width", "page_height"}`. `raw_value` and `quote` are the page's own text, checked to contain what the LLM reported. `confidence` is the page's mean OCR confidence, or null for a PDF's own text.
 
 ### `normalized_values`
 
@@ -298,9 +305,17 @@ Three layers keep the original, the cleaned value and the chosen value separate:
 
 `id`, `batch_id` FK, `kind` (`exact`, `near`), `created_at`.
 
-### `image_ocr_results`
+### `ocr_results` (planned as `image_ocr_results`)
 
-`id`, `image_id` FK, `engine` TEXT, `engine_version` TEXT, `text` TEXT, `raw_ref` (S3 key), `confidence`, `created_at`.
+Built in M4 as `ocr_results`, keyed by file rather than image, because scanned PDF pages need OCR too and the `images` table arrives in M5A.
+
+`id`, `source_file_id` FK, `page` (null for a photo), `engine`, `engine_version`, `text`, `line_count`, `confidence` (mean of lines kept), `duration_ms`, `created_at`.
+
+**Constraint:** unique `(source_file_id, COALESCE(page, 0), engine)`. Lines with their positions are stored once, on the page's `source_records` row.
+
+### `document_files`
+
+One row per PDF or image read by the `documents` stage (M4): `source_file_id` PK, `batch_id`, `kind` (`pdf`, `image`), `status` (`read`, `skipped`), `skip_reason`, `skip_message`, `pages`, `pages_with_text`, `pages_ocr`, `pages_unreadable`, `characters`, `product_keys` JSONB, `pages_without_product`, `values_kept`, `values_dropped`, `llm_source` (`none`, `llm`, `llm_failed`, `llm_capped`, `llm_budget`), `llm_message`, `created_at`, `updated_at`.
 
 ### `embedding_models`
 

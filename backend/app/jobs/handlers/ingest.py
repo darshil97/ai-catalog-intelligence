@@ -1,7 +1,8 @@
 """Ingest jobs: check every uploaded file, expand ZIPs, then apply the image limit.
 
 ingest_plan     payload {"batch_id"}: one ingest_file chunk per uploaded file.
-ingest_file     payload {"batch_id", "file_id"}: download, verify, check, and expand ZIPs.
+ingest_file     payload {"batch_id", "file_id"}: download, verify, check, expand ZIPs, and keep
+                the images inside PDFs as files of their own.
 ingest_finalize payload {"batch_id"}: keep the first images up to the limit, and count results.
 
 A bad file is rejected with a reason, and its job still succeeds: only failures on our side
@@ -23,6 +24,7 @@ from app.db import get_pool, query
 from app.files import reasons
 from app.files.reasons import FileRejectedError, Rejection
 from app.ingest.archive import ArchiveContents, ArchiveEntry, ArchiveLimits, expand
+from app.ingest.documents.pdf import EmbeddedImage, PdfUnreadableError, embedded_images
 from app.ingest.kinds.base import CheckLimits, get_kind
 from app.jobs import queue
 from app.jobs.base import JobContext, register_handler
@@ -63,6 +65,14 @@ def _archive_limits() -> ArchiveLimits:
         max_ratio=config["zip_max_ratio"],
         ratio_min_bytes=config["zip_ratio_min_bytes"],
     )
+
+
+_IMAGE_TYPES = {"jpg": "image/jpeg", "png": "image/png"}
+
+
+def _pdf_image_id(parent_id: UUID, image: EmbeddedImage) -> UUID:
+    """The same image in the same PDF always gets the same ID, so a rerun replaces it."""
+    return uuid.uuid5(parent_id, f"pdf:{image.page}:{image.index}")
 
 
 def _child_id(parent_id: UUID, entry: ArchiveEntry) -> UUID:
@@ -153,12 +163,90 @@ class IngestFileHandler:
         except FileRejectedError as exc:
             self._reject(job, row["id"], exc.rejection, {})
             return
+        images: list[EmbeddedImage] = []
+        if row["kind"] == "pdf":
+            images, details = self._pdf_images(row, local, details)
         with get_pool().connection() as conn:
             queue.fence(conn, job)
+            if row["kind"] == "pdf":
+                self._record_pdf_images(conn, row, images)
             conn.execute(
                 query("files", "mark_ingested"), {"file_id": row["id"], "details": Jsonb(details)}
             )
-        logger.info("File ingested: file_id=%s kind=%s", row["id"], row["kind"])
+        logger.info(
+            "File ingested: file_id=%s kind=%s pdf_images=%d", row["id"], row["kind"], len(images)
+        )
+
+    def _pdf_images(
+        self, row: Row, local: Path, details: dict[str, Any]
+    ) -> tuple[list[EmbeddedImage], dict[str, Any]]:
+        """Extract a PDF's images and store each one, before any row is written.
+
+        A PDF whose images can't be read keeps its text: images are an extra, not the file.
+        """
+        config = get_ingest_config()
+        try:
+            images, over = embedded_images(
+                local, config["pdf_image_min_side"], config["pdf_max_images_per_file"]
+            )
+        except PdfUnreadableError as exc:
+            logger.warning("PDF images unreadable: file_id=%s error=%s", row["id"], exc)
+            return [], {**details, "images": 0, "images_unreadable": True}
+        store = get_object_store()
+        for image in images:
+            child_id = _pdf_image_id(row["id"], image)
+            # The job's temporary folder holds the PDF, so the image goes beside it.
+            image_path = local.parent / f"{child_id}.{image.extension}"
+            image_path.write_bytes(image.data)
+            try:
+                store.upload(
+                    derived_key(row["owner_user_id"], row["batch_id"], child_id),
+                    image_path,
+                    _IMAGE_TYPES[image.extension],
+                    image.sha256,
+                )
+            except StorageError as exc:
+                raise TransientJobError(f"Upload failed for PDF image {image.name}: {exc}") from exc
+        return images, {**details, "images": len(images), "images_over_limit": over}
+
+    def _record_pdf_images(
+        self, conn: Connection[Any], row: Row, images: list[EmbeddedImage]
+    ) -> None:
+        """Replace the PDF's image entries. An image the batch already has is a duplicate."""
+        conn.execute(query("files", "delete_children"), {"file_id": row["id"]})
+        for order, image in enumerate(images, start=1):
+            child_id = _pdf_image_id(row["id"], image)
+            base = {
+                "id": child_id,
+                "batch_id": row["batch_id"],
+                "owner": row["owner_user_id"],
+                "parent_id": row["id"],
+                "member": image.name,
+                "position": row["position"],
+                "member_index": order,
+                "original_name": image.name,
+                "extension": image.extension,
+                "kind": "image",
+                "content_type": _IMAGE_TYPES[image.extension],
+                "size_bytes": len(image.data),
+                "sha256": image.sha256,
+            }
+            inserted = conn.execute(
+                query("files", "insert_child"),
+                {**base, "s3_key": derived_key(row["owner_user_id"], row["batch_id"], child_id)},
+            ).fetchone()
+            if inserted is None:
+                existing = conn.execute(
+                    query("files", "find_by_sha256"),
+                    {"batch_id": row["batch_id"], "sha256": image.sha256},
+                ).fetchone()
+                rejection = reasons.duplicate_file(
+                    existing["original_name"] if existing else "another file"
+                )
+                conn.execute(
+                    query("files", "insert_rejected_child"),
+                    {**base, "reason": rejection.code, "message": rejection.message},
+                )
 
     def _ingest_archive(
         self,

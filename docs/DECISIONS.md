@@ -40,6 +40,7 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 | [D30](#d30-uploads-checked-by-hash-in-the-browser-and-by-s3) | Uploads checked by hash in the browser and by S3 | Approved |
 | [D31](#d31-a-batch-is-processed-once-unless-processing-fails-on-our-side) | A batch is processed once, unless processing fails on our side | Approved |
 | [D32](#d32-llm-column-mapping-with-remembered-layouts) | Columns mapped by known names, then the LLM, with each supplier's layout remembered | Approved |
+| [D33](#d33-values-from-pdfs-and-photos-must-be-quoted-from-the-page) | Values from PDFs and photos must be quoted from the page; codes on pages make products only without a spreadsheet | Approved |
 
 ---
 
@@ -205,6 +206,8 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 **Rationale:** It should give better results on photos on CPU. The M4 comparison checks this assumption.
 
 **Consequences:** A registry lets the engine change with no pipeline changes.
+
+**M4 comparison (2026-11-10):** on 32 generated images with known text, RapidOCR read 100% of characters and 32 of 32 product codes; Tesseract read 83% and 27 of 32, failing mostly on rotated and noisy images. RapidOCR is about 60 ms slower per image. Full table in [M4](IMPLEMENTATION_PLAN.md#m4-document-and-image-text-extraction). On the owner's four box photos RapidOCR read the spec panel, label and small instruction text exactly, where Tesseract garbled or missed them. RapidOCR stays.
 
 ---
 
@@ -633,4 +636,28 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 - Saved mappings are per supplier, so one supplier's layout never decides another's. Raising `extraction.mapping_version` stops old ones being reused.
 - LLM setup (`app/llm`, `model_runs`, the worker's Bedrock permission) arrives in M3, not M7.
 - Correcting a mapping by hand isn't built yet. The saved-mapping table is where a correction would go.
+
+---
+
+## D33: Values from PDFs and photos must be quoted from the page
+
+**Status:** Approved by the owner on 2026-11-10 (M4).
+
+**Decision:** gpt-oss-120b reads each page of text (from a PDF, or OCR of a scan or photo) and reports values, each with the exact text it came from. Code keeps a value only if that quote is on the page and the value is inside it, and stores the page's own text with the page, quote and position. Values go to the batch's spreadsheet products when it has any, and a page is only read if it names one of them. A batch with no spreadsheet products takes its products from SKUs, model numbers or valid barcodes found on its pages, first N in file order.
+
+**Context:** The owner asked that photo and PDF details be matched to the spreadsheet when there is one, and that everything be read from the PDFs and photos when there isn't. The design principles forbid invented specifications.
+
+**Alternatives considered:**
+- *Claude Haiku reading photos directly.* Better on stylised packaging, but there would be no text to check its values against, and it adds a second model path. OCR is needed for M5B anyway.
+- *Trusting the model's values.* Simpler, but a model can convert units, fix "typos" or invent a value, and nothing would show it.
+
+**Rationale:** The quote check makes "no value without a source" a rule enforced by code, not a request in a prompt. Linking pages to products by their codes needs no model, and keeps discarded products free.
+
+**Consequences:**
+- A value written across a layout the text reading splits badly (such as a table cell far from its label) may be dropped. Dropped values are counted and listed.
+- A page naming several products gives each value to the nearest product code above it; a value the model placed differently is dropped, not guessed.
+- Photos without a readable code don't make products, and their values wait for M5B, which groups photos with products.
+- A code makes a product only if it has a digit and at least four letters and digits, or is a barcode with a valid check digit, so a logo read as a SKU can't make one (seen on a real box front).
+- In a batch without spreadsheet products, every page costs an LLM call, including pages of products past the limit.
+- The monthly spend cap ($10, all users) is enforced from M4: once reached, LLM steps are skipped and say so, and the rest of processing continues.
 
