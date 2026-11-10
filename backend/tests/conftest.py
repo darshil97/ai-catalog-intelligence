@@ -49,6 +49,7 @@ os.environ["STORAGE_BACKEND"] = "memory"
 os.environ["S3_PREFIX"] = "test"
 # No test calls a real model. The live check in test_llm_live.py opts in to Bedrock explicitly.
 os.environ["LLM_BACKEND"] = "fake"
+os.environ["EMBEDDINGS_BACKEND"] = "fake"
 
 import subprocess  # noqa: E402
 import sys  # noqa: E402

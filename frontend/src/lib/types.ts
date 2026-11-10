@@ -90,6 +90,7 @@ export type BatchRun = {
   products_found: number | null;
   products_kept: number | null;
   products_discarded: number | null;
+  image_duplicate_groups: number | null;
   stages: RunStage[];
   errors: RunError[];
 };
@@ -222,3 +223,25 @@ export type DocumentFile = {
 };
 
 export type DocumentList = { batch_id: string; items: DocumentFile[] };
+
+export type BatchImage = {
+  id: string;
+  source_file_id: string;
+  source_file_name: string;
+  parent_file_id: string | null;
+  parent_file_name: string | null;
+  status: "processed" | "skipped";
+  skip_reason: string | null;
+  skip_message: string | null;
+  width: number | null;
+  height: number | null;
+  thumbnail_url: string | null;
+  embedded: boolean;
+  embedding_note: string | null;
+  duplicate_group_id: string | null;
+  duplicate_kind: "exact" | "near" | null;
+  group_size: number;
+  is_representative: boolean;
+};
+
+export type BatchImageList = { batch_id: string; items: BatchImage[] };

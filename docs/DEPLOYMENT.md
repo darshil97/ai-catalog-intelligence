@@ -142,6 +142,14 @@ Only the worker calls an LLM, through Amazon Bedrock in Sydney (D24).
 - **Live model check:** `LIVE_LLM_TEST=1 uv run pytest tests/test_llm_live.py` sends one made-up price list to the real model, for a fraction of a cent.
 - **Spend cap:** `llm.monthly_spend_cap_usd` (default $10) is checked against this month's recorded cost in `model_runs`, for all users together. Once reached, LLM steps are skipped and the page says so.
 
+## Image embeddings (M5A)
+
+- **Worker:** Titan Multimodal Embeddings G1 on Bedrock (D34), through its role (`worker-llm` allows `amazon.titan-embed-image-v1`). No model is stored on the worker.
+- **Local:** the Bedrock API key in `backend/.env`. Tests set `EMBEDDINGS_BACKEND=fake`.
+- **Live check:** `LIVE_EMBEDDINGS_TEST=1 uv run pytest tests/test_embeddings_live.py`, four calls for $0.00032.
+- **Benchmark:** `python tools/benchmark_images.py --photos ../samples --embed`.
+- **Thumbnails** live under `derived/`; the API signs 15-minute links to them, so the API user can read `prod/derived/*`.
+
 ## OCR (M4)
 
 - **Worker:** RapidOCR, with its models shipped inside the Python package. Nothing is downloaded at runtime.

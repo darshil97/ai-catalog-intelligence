@@ -78,6 +78,10 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | Term | Meaning | Example here |
 |---|---|---|
 | **pHash** | Perceptual hash: a short fingerprint of how an image looks. Similar images give similar fingerprints. | Finds resized copies. |
+| **Near-duplicate** | Two images of the same picture: resized, re-saved, cropped a little or brightened. Grouped, never removed. | The same photo uploaded at two sizes. |
+| **Representative** | The image a near-duplicate group is shown by: its largest. | The full-size copy, not the thumbnail-sized one. |
+| **Hue histogram** | How much of each colour an image holds, ignoring brightness. Keeps colour variants apart. | A red mug and a blue mug differ; a brighter copy doesn't. |
+| **Thumbnail** | A small copy of an image for showing in the app. | 320 px on its longest side. |
 | **Embedding** | A list of numbers representing meaning, so similar things have similar numbers. | Each image gets 512 numbers. |
 | **CLIP / OpenCLIP** | An AI model that creates embeddings for images and text. | `ViT-B-32` on CPU. |
 | **Inference** | Running an AI model to get a result. | Creating an embedding. |

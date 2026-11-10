@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { ImageGrid } from "@/components/ImageGrid";
 import { describeLocation, FLAG_TEXT } from "@/lib/location";
 import type {
   BatchRun,
@@ -131,6 +132,8 @@ export function Extraction({
           {documents.error.message}
         </p>
       )}
+
+      <ImageGrid batchId={batchId} />
 
       {rowNotes.length > 0 && <RowNotes notes={rowNotes} />}
     </>

@@ -202,6 +202,41 @@ documents:
   # Product keys shorter than this must match a whole word, so "12" can't match "1200 ml".
   min_key_chars_for_loose_match: 4
 
+# Image records, thumbnails, near-duplicate groups and embeddings (M5A).
+images:
+  # One processing job handles this many images.
+  chunk_size: 8
+  # Thumbnails are JPEGs no larger than this on their longest side.
+  thumbnail_side: 320
+  thumbnail_quality: 82
+  # Images are shrunk to at most this before embedding, which the model requires anyway.
+  embed_max_side: 2048
+  # Images smaller than this on either side get a record and a hash, but no embedding.
+  embed_min_side: 32
+  # Two images are near-duplicates when both of these agree. Embeddings alone call the same
+  # box in another colour a copy, so colour must be close too. Tuned on the owner's box
+  # photos: copies scored 0.92-1.0 similar and 0-0.014 apart in colour; a recoloured copy
+  # 0.064 apart, and other sides of the same box at most 0.75 similar.
+  duplicate_min_similarity: 0.90
+  # Largest difference of the hue histograms (0 to 2).
+  duplicate_max_colour_distance: 0.04
+  # Signed thumbnail links last this long.
+  thumbnail_url_seconds: 900
+
+# Image embeddings come from Bedrock, from the worker only (D34). Changing the model means a new
+# embedding_models row, and a new table if the dimension changes.
+embeddings:
+  # bedrock, or fake for tests.
+  backend: ${EMBEDDINGS_BACKEND:-bedrock}
+  provider: bedrock
+  model_id: amazon.titan-embed-image-v1
+  model_version: "1"
+  dimension: 1024
+  region: ${AWS_REGION:-ap-southeast-2}
+  timeout_seconds: 30
+  # USD per image, Sydney on-demand price, recorded with every call for the spend cap.
+  price_per_image: 0.00008
+
 # LLM calls go through LangChain to Amazon Bedrock (D24), from the worker only.
 llm:
   # bedrock, or fake for tests.
@@ -291,6 +326,11 @@ pipelines:
       job_type: documents_plan
     - stage: document_values
       job_type: document_values
+    # Images: records and thumbnails in chunks, then near-duplicate groups across the batch.
+    - stage: images
+      job_type: images_plan
+    - stage: image_groups
+      job_type: images_group
 
 # Admin-only diagnostic runs of the no-op pipeline.
 test_runs:

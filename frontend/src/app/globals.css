@@ -322,3 +322,47 @@ a {
   background: var(--warning-surface);
   color: var(--warning);
 }
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.image-grid li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+}
+
+.image-grid li.grouped {
+  border-color: var(--accent);
+  border-width: 2px;
+}
+
+.image-grid img,
+.thumb-missing {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.thumb-missing {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.image-name {
+  overflow-wrap: anywhere;
+}

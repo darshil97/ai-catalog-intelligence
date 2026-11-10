@@ -71,8 +71,19 @@ def test_mixed_batch_is_checked_and_expanded(
     assert "prices.csv" in files["copy-of-prices.csv"]["rejection_message"]
     assert files["inner.zip"]["rejection_reason"] == "nested_archive"
     assert files["readme.txt"]["rejection_reason"] == "unsupported_type"
-    derived = [key for key in store.objects if key.startswith(f"test/derived/{ALICE}/{batch_id}/")]
-    assert len(derived) == 2
+    # The two kept ZIP entries are stored. Thumbnails share the derived/ folder, so only the
+    # entries' own keys are counted.
+    with get_pool().connection() as conn:
+        entry_keys = [
+            row["s3_key"]
+            for row in conn.execute(
+                "SELECT s3_key FROM source_files WHERE parent_file_id = %s AND s3_key IS NOT NULL",
+                (zip_id,),
+            ).fetchall()
+        ]
+    assert len(entry_keys) == 2
+    assert all(key.startswith(f"test/derived/{ALICE}/{batch_id}/") for key in entry_keys)
+    assert all(key in store.objects for key in entry_keys)
 
     run = client.get(f"/batches/{batch_id}/run", headers=alice).json()
     assert run["status"] == "succeeded"
