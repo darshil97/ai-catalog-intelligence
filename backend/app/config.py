@@ -312,3 +312,34 @@ def get_documents_config() -> dict[str, Any]:
         elif name not in text_keys:
             section[name] = int(value)
     return section
+
+
+def get_images_config() -> dict[str, Any]:
+    """Return image processing settings.
+
+    Keys: chunk_size, thumbnail_side, thumbnail_quality, embed_max_side, embed_min_side,
+    duplicate_min_similarity (float), duplicate_max_colour_distance (float),
+    thumbnail_url_seconds.
+    """
+    section = dict(get_config()["images"])
+    floats = ("duplicate_min_similarity", "duplicate_max_colour_distance")
+    return {name: float(value) if name in floats else int(value) for name, value in section.items()}
+
+
+def get_embeddings_config() -> dict[str, Any]:
+    """Return image embedding settings.
+
+    Keys: backend, provider, model_id, model_version, dimension, region, timeout_seconds,
+    price_per_image (float).
+    """
+    section = dict(get_config()["embeddings"])
+    return {
+        "backend": str(section["backend"]),
+        "provider": str(section["provider"]),
+        "model_id": str(section["model_id"]),
+        "model_version": str(section["model_version"]),
+        "dimension": int(section["dimension"]),
+        "region": str(section["region"]),
+        "timeout_seconds": int(section["timeout_seconds"]),
+        "price_per_image": float(section["price_per_image"]),
+    }

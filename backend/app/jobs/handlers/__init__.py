@@ -2,5 +2,6 @@
 
 import app.jobs.handlers.documents  # noqa: F401
 import app.jobs.handlers.extract  # noqa: F401
+import app.jobs.handlers.images  # noqa: F401
 import app.jobs.handlers.ingest  # noqa: F401
 import app.jobs.handlers.noop  # noqa: F401

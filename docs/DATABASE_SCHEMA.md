@@ -6,6 +6,7 @@
 
 - **Spreadsheet extraction** (`categories`, `attribute_definitions`, `model_runs`, `column_mappings`, `spreadsheet_sheets`, `source_records`, `products`, `attribute_observations`): migration `0005` (M3), applied to `production`, `dev` and `test`.
 - **Document extraction** (`ocr_results`, `document_files`, `products.origin`): migration `0006` (M4), applied to `production` and `test`. `dev` is still at `0005`.
+- **Images** (`embedding_models`, `images`, `image_duplicate_groups`, `image_embeddings`, `pipeline_runs.image_duplicate_groups`): migration `0007` (M5A), applied to `test` only so far.
 
 This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
@@ -301,6 +302,8 @@ Three layers keep the original, the cleaned value and the chosen value separate:
 
 **Constraint:** `UNIQUE(source_file_id, archive_member)`. **Index:** `(batch_id, sha256)`.
 
+**As built (M5A):** one row per kept image's source file (`source_file_id` UNIQUE; the ZIP or PDF it came from is on `source_files`, so `archive_member` isn't repeated here), with `owner_user_id`, `status` (`processed`, `skipped`), `skip_reason`, `skip_message`, `colour_signature` (12-bin hue histogram), `is_representative`, `embedding_note` (why there's no embedding) and `timings` (milliseconds per step). The ID is derived from the source file, so a rerun replaces it.
+
 ### `image_duplicate_groups`
 
 `id`, `batch_id` FK, `kind` (`exact`, `near`), `created_at`.
@@ -319,9 +322,9 @@ One row per PDF or image read by the `documents` stage (M4): `source_file_id` PK
 
 ### `embedding_models`
 
-`id`, `name`, `pretrained_tag`, `version`, `dimension` INTEGER NOT NULL, `created_at`.
+`id`, `provider`, `name`, `version`, `dimension` INTEGER NOT NULL, `created_at`. Built in M5A with `provider` in place of the planned `pretrained_tag`, since the model is called on Bedrock (D34). Seeded with `bedrock` / `amazon.titan-embed-image-v1` / `1` / 1024.
 
-**Constraint:** `UNIQUE(name, pretrained_tag, version)`.
+**Constraint:** `UNIQUE(provider, name, version)`.
 
 ### `image_embeddings`
 
@@ -329,7 +332,8 @@ One row per PDF or image read by the `documents` stage (M4): `source_file_id` PK
 |---|---|---|
 | `image_id` | UUID FK | Part of the primary key |
 | `embedding_model_id` | UUID FK | Part of the primary key |
-| `embedding` | `vector(512)` NOT NULL | |
+| `embedding` | `vector(1024)` NOT NULL | Titan's size (D34); planned as 512 for OpenCLIP |
+| `model_run_id` | UUID FK, nullable | The call that produced it, with its cost (M5A) |
 | `created_at` | TIMESTAMPTZ | |
 
 **Rules:**

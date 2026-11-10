@@ -90,6 +90,18 @@ class S3ObjectStore:
             raise _storage_error("presign_upload", exc) from exc
         return PresignedUpload(url=response["url"], fields=dict(response["fields"]))
 
+    def presign_download(self, key: str, expires_seconds: int) -> str:
+        """Sign a GET for one object. Signing is local: nothing is sent to S3."""
+        try:
+            url: str = self._s3().generate_presigned_url(
+                "get_object",
+                Params={"Bucket": self._bucket, "Key": key},
+                ExpiresIn=expires_seconds,
+            )
+        except Exception as exc:
+            raise _storage_error("presign_download", exc) from exc
+        return url
+
     def head(self, key: str) -> ObjectInfo | None:
         """Return the object's size and verified checksum, or None if it's missing."""
         from botocore.exceptions import ClientError

@@ -67,6 +67,14 @@ class ObjectStore(Protocol):
         """Return a form upload that only accepts exactly this size, type and checksum."""
         ...
 
+    def presign_download(self, key: str, expires_seconds: int) -> str:
+        """Return a link that lets a browser read this one object until it expires.
+
+        Raises:
+            StorageError: if the link can't be made.
+        """
+        ...
+
     def head(self, key: str) -> ObjectInfo | None:
         """Return the object's size and checksum, or None if it doesn't exist.
 

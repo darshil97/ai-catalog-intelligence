@@ -179,3 +179,36 @@ class DocumentList(BaseModel):
 
     batch_id: UUID = Field(..., description="The batch.")
     items: list[Document] = Field(..., description="Files, in upload order.")
+
+
+class BatchImage(BaseModel):
+    """A kept image: its size, thumbnail, and the near-duplicates it was grouped with."""
+
+    id: UUID = Field(..., description="Image ID.")
+    source_file_id: UUID = Field(..., description="The file it is.")
+    source_file_name: str = Field(..., description="That file's name.")
+    parent_file_id: UUID | None = Field(None, description="The ZIP or PDF it came from, if any.")
+    parent_file_name: str | None = Field(None, description="That ZIP or PDF's name.")
+    status: str = Field(..., description="processed or skipped.")
+    skip_reason: str | None = Field(None, description="Why it wasn't processed: unreadable.")
+    skip_message: str | None = Field(None, description="Why it wasn't processed, for people.")
+    width: int | None = Field(None, description="Width in pixels, upright.")
+    height: int | None = Field(None, description="Height in pixels, upright.")
+    thumbnail_url: str | None = Field(
+        None, description="A short-lived link to a small JPEG of it. Expires after 15 minutes."
+    )
+    embedded: bool = Field(..., description="True if it can be compared with others by content.")
+    embedding_note: str | None = Field(None, description="Why it can't be compared, if not.")
+    duplicate_group_id: UUID | None = Field(
+        None, description="Its near-duplicate group. Images in a group show the same picture."
+    )
+    duplicate_kind: str | None = Field(None, description="exact or near.")
+    group_size: int = Field(..., description="Images in its group, itself included. 1 if none.")
+    is_representative: bool = Field(..., description="True for the group's largest image.")
+
+
+class BatchImageList(BaseModel):
+    """A batch's kept images, in file order."""
+
+    batch_id: UUID = Field(..., description="The batch.")
+    items: list[BatchImage] = Field(..., description="Images, in upload order.")

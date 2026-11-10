@@ -6,7 +6,13 @@ from uuid import UUID
 from fastapi import APIRouter
 
 from app.api.dependencies import ActiveUser
-from app.api.schemas.products import DocumentList, ProductDetail, ProductList, SheetList
+from app.api.schemas.products import (
+    BatchImageList,
+    DocumentList,
+    ProductDetail,
+    ProductList,
+    SheetList,
+)
 from app.api.services import products
 
 router = APIRouter(tags=["products"])
@@ -34,3 +40,9 @@ def list_sheets(batch_id: UUID, profile: ActiveUser) -> dict[str, Any]:
 def list_documents(batch_id: UUID, profile: ActiveUser) -> dict[str, Any]:
     """List a batch's PDFs and photos: how each was read, and what was found in it."""
     return products.list_documents(profile, batch_id)
+
+
+@router.get("/batches/{batch_id}/images", response_model=BatchImageList)
+def list_images(batch_id: UUID, profile: ActiveUser) -> dict[str, Any]:
+    """List a batch's kept images, with thumbnails and near-duplicate groups."""
+    return products.list_images(profile, batch_id)

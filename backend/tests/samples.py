@@ -241,3 +241,30 @@ def text_pdf(
     trailer = f"trailer\n<< /Size {len(objects) + 1} /Root {catalog} 0 R >>\n"
     out.write(f"{trailer}startxref\n{xref}\n%%EOF\n".encode())
     return out.getvalue()
+
+
+def product_photo(
+    colour: tuple[int, int, int] = (190, 30, 40), shape: str = "mug", label: str = "AK-1003"
+) -> "Image.Image":  # noqa: F821 - PIL loads lazily
+    """A simple product shot: a coloured object on a light background, with a label."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    image = Image.new("RGB", (600, 480), (236, 236, 232))
+    draw = ImageDraw.Draw(image)
+    if shape == "mug":
+        draw.rounded_rectangle((170, 110, 400, 400), radius=30, fill=colour)
+        draw.ellipse((380, 180, 480, 320), outline=colour, width=22)
+    elif shape == "box":
+        draw.rectangle((120, 60, 480, 430), fill=colour)
+        draw.rectangle((150, 300, 450, 400), fill=(250, 250, 250))
+    else:
+        draw.ellipse((150, 90, 450, 390), fill=colour)
+        draw.polygon([(300, 40), (220, 160), (380, 160)], fill=(40, 40, 40))
+    draw.text((190, 420), label, fill=(20, 20, 20), font=ImageFont.load_default(size=28))
+    return image
+
+
+def jpeg_of(image: "Image.Image", quality: int = 90) -> bytes:  # noqa: F821
+    out = io.BytesIO()
+    image.convert("RGB").save(out, format="JPEG", quality=quality)
+    return out.getvalue()

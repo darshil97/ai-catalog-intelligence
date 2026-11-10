@@ -119,6 +119,7 @@ SELECT r.id, r.status, r.created_at, r.started_at, r.finished_at,
        r.files_found, r.files_kept, r.files_discarded,
        r.images_found, r.images_kept, r.images_discarded,
        r.products_found, r.products_kept, r.products_discarded,
+       r.image_duplicate_groups,
        COALESCE((SELECT json_agg(s ORDER BY s.position)
                  FROM (SELECT stage, position, status, total_chunks, completed_chunks,
                               failed_chunks

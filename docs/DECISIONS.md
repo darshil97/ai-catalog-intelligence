@@ -27,7 +27,7 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 | [D17](#d17-worker-deployment) | Worker deploy via GitHub OIDC and SSM | Approved, OIDC part blocked (D26) |
 | [D18](#d18-repository-layout) | `backend/`, `frontend/`, `docs/` | Approved |
 | [D19](#d19-attribute-provenance-model) | Append-only attribute provenance | Approved |
-| [D20](#d20-image-similarity-and-duplicates) | pHash + OpenCLIP, exact search | Approved |
+| [D20](#d20-image-similarity-and-duplicates) | pHash + OpenCLIP, exact search | Approved; model superseded by D34 |
 | [D21](#d21-guidelines-as-reference) | `GUIDELINES.md` as a reference | Approved |
 | [D22](#d22-local-python-environment) | Conda env `ai-catalog` for local development | Approved |
 | [D23](#d23-render-setup) | Create the Render service manually | Approved |
@@ -41,6 +41,7 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 | [D31](#d31-a-batch-is-processed-once-unless-processing-fails-on-our-side) | A batch is processed once, unless processing fails on our side | Approved |
 | [D32](#d32-llm-column-mapping-with-remembered-layouts) | Columns mapped by known names, then the LLM, with each supplier's layout remembered | Approved |
 | [D33](#d33-values-from-pdfs-and-photos-must-be-quoted-from-the-page) | Values from PDFs and photos must be quoted from the page; codes on pages make products only without a spreadsheet | Approved |
+| [D34](#d34-image-embeddings-from-titan-on-bedrock) | Image embeddings from Titan Multimodal Embeddings on Bedrock instead of OpenCLIP; near-duplicates need similar embeddings and close colours | Approved |
 
 ---
 
@@ -422,7 +423,7 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 
 ## D20: Image similarity and duplicates
 
-**Status:** Approved
+**Status:** Approved. The embedding model is superseded by [D34](#d34-image-embeddings-from-titan-on-bedrock); pHash, exact batch-scoped search and the rule that similarity alone never makes a match still stand.
 
 **Decision:** pHash for duplicates. OpenCLIP `ViT-B-32` with `laion2b_s34b_b79k` on CPU, stored in pgvector with its model recorded. Exact batch-scoped search, with no HNSW index initially. Visual similarity alone can't produce an accepted match.
 
@@ -660,4 +661,36 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 - A code makes a product only if it has a digit and at least four letters and digits, or is a barcode with a valid check digit, so a logo read as a SKU can't make one (seen on a real box front).
 - In a batch without spreadsheet products, every page costs an LLM call, including pages of products past the limit.
 - The monthly spend cap ($10, all users) is enforced from M4: once reached, LLM steps are skipped and say so, and the rest of processing continues.
+
+---
+
+## D34: Image embeddings from Titan on Bedrock
+
+**Status:** Approved by the owner on 2026-11-10 (M5A). Supersedes D20's choice of OpenCLIP.
+
+**Decision:** Images are embedded by Amazon Titan Multimodal Embeddings G1 (`amazon.titan-embed-image-v1`) on Bedrock in Sydney, at 1,024 dimensions, called by the worker through its instance role. Two images are near-duplicates when their embeddings are at least 0.90 similar and their hue histograms differ by at most 0.04. pHash is still stored, for M5B and for exact copies.
+
+**Context:** The owner asked whether an embedding API would be cheaper and easier than running OpenCLIP, and authorised test calls. The account has two image embedding models in Sydney: Titan G1 (in-region, on demand) and Cohere Embed v4 (global profile only).
+
+**Test, 2026-11-10,** on the owner's four box photos and edited copies of one, by cosine similarity to the original:
+
+| Copy or other photo | Titan G1 | Cohere v4 |
+|---|---|---|
+| Resized, re-saved, cropped 5%, brighter, mirrored, overlaid | 0.916–1.000 | 0.906–0.995 |
+| Same box recoloured | 0.941 | 0.993 |
+| Other sides of the same box | 0.493–0.753 | 0.689–0.801 |
+| Time per image | 0.8 s | 1.6 s |
+
+**Alternatives considered:**
+- *OpenCLIP on the worker (D20).* No per-call cost, but PyTorch and a 600 MB model on the worker, a model download to manage, and slower CPU inference on a t3a.medium.
+- *Cohere Embed v4.* Similar quality, but a narrower gap between copies and other photos, global routing only, and twice as slow.
+
+**Rationale:** Titan separates copies from other photos with the widest margin, runs in-region, costs $0.00008 per image (about $0.002 per 25-image submission), and needs no model on the worker.
+
+**Consequences:**
+- Neither model notices colour, so a hue histogram decides colour variants. On the owner's photos copies were 0–0.014 apart and a recoloured box 0.064; a red and a blue product about 0.33.
+- Embedding calls go into `model_runs` with their cost, and count toward the monthly spend cap. Once reached, images are kept and thumbnailed but not embedded, and say so.
+- If Bedrock is unavailable, the image isn't embedded and says so; the run carries on.
+- Changing the model means a new `embedding_models` row, and a new table if the dimension changes. Old and new embeddings are never compared.
+- The worker role gains `bedrock:InvokeModel` on Titan.
 

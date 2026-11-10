@@ -14,7 +14,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | M2 | File ingestion and storage | M0B, M1 | Completed |
 | M3 | Spreadsheet extraction | M2 | Completed |
 | M4 | Document and image text extraction | M3 | Completed |
-| M5A | Image processing | M2, M0B | Not Started |
+| M5A | Image processing | M2, M0B | In Progress |
 | M5B | Image association | M3, M4, M5A | Not Started |
 | M6 | Product normalization | M3, M4 | Not Started |
 | M7 | Catalog enrichment | M6 | Not Started |
@@ -350,6 +350,8 @@ RapidOCR stays (D7).
 
 ## M5A Image processing
 
+**Status:** proposal approved by the owner on 2026-11-10, with Titan embeddings on Bedrock in place of OpenCLIP (D34). **In progress:** built and tested locally and against the Neon `test` branch. Not yet committed, deployed or accepted live.
+
 **Scope**
 - CPU throughput benchmark for CLIP and OCR, which informs chunk sizes.
 - pHash, thumbnails, duplicate grouping.
@@ -363,6 +365,32 @@ RapidOCR stays (D7).
 **Tests**
 - Resized and slightly edited duplicates are detected.
 - Comparing across models or across users is refused.
+
+**Approved decisions (2026-11-10):**
+- Embeddings from Titan Multimodal Embeddings G1 on Bedrock, chosen over OpenCLIP after test calls (D34). No PyTorch and no model on the worker, so the owner's choices about where to keep the model no longer apply.
+- Thumbnails shown in the app, through signed links; the API user gains read access to `prod/derived/`.
+- The simpler near-duplicate rule: similar embeddings and close colours. pHash is stored but not part of the rule.
+
+**Implementation notes**
+- Migration `0007`: `embedding_models` (Titan seeded), `images`, `image_duplicate_groups`, `image_embeddings` (`vector(1024)`, no index), and `pipeline_runs.image_duplicate_groups`.
+- The `ingest` pipeline gains two stages. `images` processes every kept image in chunks of 8: download, upright and RGB, pHash, a 12-bin hue histogram, a 320 px thumbnail under `derived/`, and an embedding. `image_groups` then groups near-duplicates across the batch with one exact SQL comparison, and marks each group's largest image as its representative. Nothing is removed.
+- `app/vision`: features and an embedder registry (`bedrock` Titan, `fake` for tests). `app/images`: similarity queries that always name the batch or images, the owner and the model; comparing across models or users raises an error.
+- API: `GET /batches/{id}/images`, with 15-minute signed thumbnail links. Run status adds `image_duplicate_groups`. Deleting a batch also deletes its thumbnails.
+- Frontend: an Images grid on the batch page, with each duplicate group outlined, largest first.
+- `tools/benchmark_images.py` times each step; `tests/test_embeddings_live.py` checks Titan's threshold (opt-in).
+- The colour check started as a 4x4 grid of average colours. On the owner's photos it split a brightened copy (19.7 against a limit of 18) and barely noticed a recolour (6.7), so it was replaced by the hue histogram before release.
+
+**Throughput (D20's benchmark), 2026-11-10, on a Mac, the owner's photos as uploaded and scaled to 12 megapixels:**
+
+| Step | Median | Slowest |
+|---|---|---|
+| Load | 0.02 s | 0.04 s |
+| Hash and colour | 0.01–0.03 s | 0.03 s |
+| Thumbnail | 0.01 s | 0.01 s |
+| OCR (M4) | 0.45–0.61 s | 1.16 s |
+| Titan embedding | 0.69–1.06 s | 2.63 s |
+
+About 1.5–2 seconds per image, almost all OCR and the Titan call, so a 25-image batch needs about a minute of image work here, and an estimated 2–3 minutes on the t3a.medium. With about a minute to boot, a batch costs well under 10 EC2 minutes, so the 30-hour monthly cap allows hundreds of batches. Real worker timings are stored per image (`images.timings`) and will be added after the first production run.
 
 ---
 

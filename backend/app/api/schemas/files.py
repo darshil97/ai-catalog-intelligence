@@ -138,6 +138,9 @@ class BatchRun(BaseModel):
     products_discarded: int | None = Field(
         None, description="Products past your limit. Nothing is stored for them."
     )
+    image_duplicate_groups: int | None = Field(
+        None, description="Groups of images that show the same picture."
+    )
     stages: list[RunStage] = Field(..., description="Stage progress, in order.")
     errors: list[RunError] = Field(
         ..., description="Failures, and rows or cells that couldn't be used, oldest first."

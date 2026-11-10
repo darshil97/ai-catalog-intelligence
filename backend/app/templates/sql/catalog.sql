@@ -100,5 +100,8 @@ deleted AS (
 )
 SELECT t.status, (SELECT count(*) FROM deleted) AS deleted,
        ARRAY(SELECT f.s3_key FROM source_files f
-             WHERE f.batch_id = t.id AND f.s3_key IS NOT NULL) AS keys
+             WHERE f.batch_id = t.id AND f.s3_key IS NOT NULL
+             UNION ALL
+             SELECT i.thumbnail_s3_key FROM images i
+             WHERE i.batch_id = t.id AND i.thumbnail_s3_key IS NOT NULL) AS keys
 FROM target t;
