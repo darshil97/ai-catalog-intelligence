@@ -12,7 +12,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | M0B | Processing platform | M0A | Completed |
 | M1 | Accounts, suppliers and batches | M0A | Completed |
 | M2 | File ingestion and storage | M0B, M1 | Completed |
-| M3 | Spreadsheet extraction | M2 | In Progress |
+| M3 | Spreadsheet extraction | M2 | Completed |
 | M4 | Document and image text extraction | M3 | Not Started |
 | M5A | Image processing | M2, M0B | Not Started |
 | M5B | Image association | M3, M4, M5A | Not Started |
@@ -226,7 +226,7 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 
 ## M3 Spreadsheet extraction
 
-**Status:** proposal approved by the owner on 2026-11-10, with LLM column mapping in place of the fixed list first proposed (D32). **In progress:** built and tested locally and against the Neon `test` branch. Not yet committed, deployed or accepted live. See the implementation notes below.
+**Status:** proposal approved by the owner on 2026-11-10, with LLM column mapping in place of the fixed list first proposed (D32). **Completed on 2026-11-10.** Merged and deployed, migration `0005` applied to `production` (by CI), `dev` and `test`, and live acceptance passed (owner, 2026-11-10). See the implementation notes below.
 
 **Scope**
 - CSV and XLSX parsers.
@@ -256,7 +256,7 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 - `app/catalog/identifiers.py`: identifier cleanup. `app/products`: read access for the API.
 - API: `GET /batches/{id}/products`, `GET /products/{id}`, `GET /batches/{id}/sheets`. `GET /batches/{id}/run` adds product counts and lists rows and cells that couldn't be used.
 - Frontend: the batch page shows products, how each sheet was mapped, and unusable rows. A product page shows every value with its file, sheet, row and column.
-- CloudFormation: the worker role gains `bedrock:InvokeModel` on gpt-oss-120b in Sydney (policy `worker-llm`). **Not yet applied to AWS.**
+- CloudFormation: the worker role gains `bedrock:InvokeModel` on gpt-oss-120b in Sydney (policy `worker-llm`), applied through change set `m3-bedrock`.
 - Verified against the real model (`tests/test_llm_live.py`): a German price list with a title row mapped correctly, and gross weight and stock were left unmapped.
 
 **Behaviour worth knowing**
@@ -265,6 +265,13 @@ Preview deployments use other URLs, which aren't trusted, so sign-in works only 
 - A row is one product by its SKU, or its model number if it has no SKU, or its barcode. Case and surrounding spaces are ignored. Dashes and slashes are kept.
 - A product whose only row couldn't be stored (too large) still exists, with nothing read for it, and the row is reported.
 - An image-only batch completes with no products. Products from images come with M4 and M5B.
+
+**Release notes**
+- The first CI run failed one check: loading the API peaked at 165 MB on Linux, over the test's 150 MB guard. The live API uses about 110 MB of Render's 512 MB, so the guard was raised to 200 MB.
+- The fix after it changed only a test, so CI skipped the worker deploy (it compared with the previous push). The worker was deployed by hand over Systems Manager, and CI now compares with the last fully successful run.
+- `dev` was migrated through `run_sql` with the SQL Alembic generates, because local Alembic runs were blocked in this session.
+
+**Live acceptance (2026-11-10):** the owner processed `acme-price-list.csv` (a title row, 15 columns, 8 products, a repeated SKU and a row without one) on Vercel. The run took 6 seconds on EC2 and kept 5 of 8 products in file order. The header was found in row 3, and 12 columns were recognised by name. One gpt-oss-120b call ($0.00045, 4 seconds) mapped "Höhe (cm)" to height and left gross weight, stock and lead time unmapped. The repeated SKU became one product with both rows' values. Workbooks, merged headers and the LLM fallback are covered by automated tests, not yet by a live run.
 
 ---
 
