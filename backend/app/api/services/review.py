@@ -7,6 +7,7 @@ import psycopg
 
 from app import catalog, review
 from app.api.services.common import database, http_error, not_found
+from app.api.services.enrichment import start_after_review
 from app.auth import Profile
 from app.compute.starter import request_worker_start
 from app.config import (
@@ -202,11 +203,17 @@ def decide(profile: Profile, task_id: UUID, request: Any) -> dict[str, Any]:
     status = "not_needed"
     if kind == review.KIND_IMAGE_MATCH and result.get("accepted_product_id") is not None:
         status, _ = _queue_photo_values(profile, result["batch_id"])
+    # The last review item decided: write the copy that waited for it. A photo-values run
+    # ends by writing copy itself, so one isn't started alongside it.
+    copy_writing = (
+        "not_needed" if status == "queued" else start_after_review(profile, result["batch_id"])
+    )
     return {
         "task_id": task_id,
         "accepted_product_id": result.get("accepted_product_id"),
         "shown": result.get("shown"),
         "photo_values": status,
+        "copy_writing": copy_writing,
     }
 
 

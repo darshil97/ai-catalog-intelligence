@@ -27,10 +27,18 @@ NONE = "none"
 
 @dataclass(frozen=True)
 class ProductFacts:
-    """A product, its current text's summary, and its facts now."""
+    """A product, its current text's summary, and its facts now.
+
+    Attributes:
+        open_reviews: Review items about it still waiting for a decision. Copy written now
+            would leave those values out, so automatic writing waits for them.
+        changes: A person's decisions since its copy was written, in words, newest last.
+    """
 
     product: Row
     sheet: FactSheet
+    open_reviews: int = 0
+    changes: tuple[str, ...] = ()
 
     @property
     def state(self) -> str:
@@ -43,6 +51,24 @@ class ProductFacts:
         if self.product["input_fingerprint"] != self.sheet.fingerprint:
             return OUT_OF_DATE
         return GENERATED
+
+    @property
+    def reasons(self) -> list[str]:
+        """Why its copy is missing or needs rewriting, for people."""
+        state = self.state
+        if state == OUT_OF_DATE:
+            if self.changes:
+                return [f"Since the copy was written, {change}." for change in self.changes]
+            return ["Values it uses have changed since the copy was written."]
+        if state == NONE and self.open_reviews:
+            return [
+                f"Waiting for {self.open_reviews} review "
+                f"{'item' if self.open_reviews == 1 else 'items'}: copy is written once "
+                "they're decided, so it includes the values you settle."
+            ]
+        if state == NONE:
+            return ["No copy has been written yet."]
+        return []
 
     def needs_generation(self, max_versions: int) -> bool:
         """Whether generating now could change anything."""
@@ -77,7 +103,7 @@ def category_paths(conn: Connection[Any]) -> dict[UUID, str]:
 def product_facts(
     conn: Connection[Any], owner: str, batch_id: UUID, product_id: UUID | None = None
 ) -> list[ProductFacts]:
-    """A batch's products (or one), each with its facts as they are now. Three queries."""
+    """A batch's products (or one), each with its facts as they are now. Six queries."""
     settings = get_enrichment_config()
     params = {"owner": owner, "batch_id": batch_id, "product_id": product_id}
     products = conn.execute(query("enrichment", "products"), params).fetchall()
@@ -87,6 +113,12 @@ def product_facts(
     for row in conn.execute(query("enrichment", "attributes"), params).fetchall():
         by_product.setdefault(row["product_id"], []).append(row)
     paths = category_paths(conn)
+    reviews: dict[UUID, int] = {}
+    for row in conn.execute(query("validation", "open_reviews"), params).fetchall():
+        reviews[row["product_id"]] = reviews.get(row["product_id"], 0) + 1
+    changes: dict[UUID, list[Row]] = {}
+    for row in conn.execute(query("enrichment", "changes"), params).fetchall():
+        changes.setdefault(row["product_id"], []).append(row)
     out = []
     for product in products:
         category = {
@@ -95,8 +127,31 @@ def product_facts(
             "state": product["category_state"],
         }
         sheet = build_facts(by_product.get(product["id"], []), category, settings)
-        out.append(ProductFacts(product=product, sheet=sheet))
+        written = product["generated_at"]
+        since = [
+            _describe(change)
+            for change in changes.get(product["id"], [])
+            if written is not None and change["created_at"] > written
+        ]
+        out.append(
+            ProductFacts(
+                product=product,
+                sheet=sheet,
+                open_reviews=reviews.get(product["id"], 0),
+                changes=tuple(since),
+            )
+        )
     return out
+
+
+def _describe(change: Row) -> str:
+    """A decision in words, such as 'you set Capacity to "1.5 L"'."""
+    if change["kind"] == "photo":
+        return f"you confirmed the photo {change['what']}, which can add values"
+    if change["kind"] == "category":
+        return f'you chose the category "{change["value"]}"'
+    value = change["value"]
+    return f'you set {change["what"]} to "{value}"' if value else f"you settled {change['what']}"
 
 
 def start_enrichment(

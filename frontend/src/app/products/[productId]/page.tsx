@@ -348,6 +348,20 @@ function GeneratedSection({
         </span>
       </div>
       {content.message && <p className="muted">{content.message}</p>}
+      {content.reasons.length > 0 && content.state !== "failed" && (
+        <div className="notice tinted">
+          <strong>
+            {content.state === "out_of_date"
+              ? "Why it needs rewriting"
+              : "Why there's no copy yet"}
+          </strong>
+          <ul className="reasons">
+            {content.reasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {content.version !== null && title && (
         <div className="stack">
           <ClaimLine claim={title} strong />

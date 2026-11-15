@@ -51,7 +51,11 @@ export function ReviewPanel({
         `/review-tasks/${task.id}/decision`,
         { method: "POST", body: JSON.stringify(body) },
       );
-      setMessage(PHOTO_VALUES_TEXT[result.photo_values] || null);
+      setMessage(
+        result.copy_writing === "queued"
+          ? "That was the last review item, so copy is being written now from the values you settled."
+          : PHOTO_VALUES_TEXT[result.photo_values] || null,
+      );
     } catch (caught) {
       setError(
         caught instanceof ApiError ? caught.message : "Couldn't save that.",

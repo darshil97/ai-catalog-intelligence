@@ -14,6 +14,7 @@ export type NextTab = "review" | "copy" | "checks";
 type Step = {
   title: string;
   text: string;
+  reasons?: string[];
   action?: { label: string; run: () => void | Promise<void> };
   done?: boolean;
 };
@@ -72,7 +73,7 @@ export function NextStep({
   if (openReviews > 0) {
     step = {
       title: `${plural(openReviews, "decision is", "decisions are")} waiting for you`,
-      text: "Confirm photos, choose between values that disagree, and pick categories. Each one shows its evidence side by side.",
+      text: "Confirm photos, choose between values that disagree, and pick categories. Each one shows its evidence side by side. Copy is written automatically once you've decided them, so it includes the values you settle.",
       action: { label: "Start reviewing", run: () => onTab("review") },
     };
   } else if (writing) {
@@ -90,7 +91,12 @@ export function NextStep({
   } else if (enrichment.can_generate > 0 && !enrichment.budget_reached) {
     step = {
       title: `${plural(enrichment.can_generate, "product needs", "products need")} copy`,
-      text: "Their copy is missing or out of date, for example after a review decision changed a value. Write it from the settled values now.",
+      text: "Copy is written from settled values, and these changed or are new since it was written:",
+      reasons: enrichment.items
+        .filter((item) => item.can_generate)
+        .flatMap((item) =>
+          item.reasons.map((reason) => `${item.product_key}: ${reason}`),
+        ),
       action: {
         label: busy ? "Starting…" : "Generate copy",
         run: generate,
@@ -119,6 +125,16 @@ export function NextStep({
         <p className="eyebrow">{step.done ? "All done" : "Next step"}</p>
         <h2>{step.title}</h2>
         <p className="muted">{step.text}</p>
+        {step.reasons && step.reasons.length > 0 && (
+          <ul className="reasons">
+            {step.reasons.slice(0, 4).map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+            {step.reasons.length > 4 && (
+              <li>and {step.reasons.length - 4} more on the Copy tab</li>
+            )}
+          </ul>
+        )}
         {error && (
           <p className="error" role="alert">
             {error}

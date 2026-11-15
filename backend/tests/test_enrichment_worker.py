@@ -533,3 +533,60 @@ def test_copy_is_written_automatically_at_the_end_of_processing(
             "SELECT count(*) AS n FROM jobs WHERE status = 'blocked_quota'"
         ).fetchone()
     assert blocked is not None and blocked["n"] == 0
+
+
+def test_copy_waits_for_review_and_is_written_when_the_last_item_is_decided(
+    client: TestClient,
+    store: MemoryObjectStore,
+    alice: dict,
+    llm: FakeBackend,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    auto_copy_on(monkeypatch)
+    asked = _answer(llm, monkeypatch, grounded_reply)
+    # The spec sheet disagrees with the price list on the jug's capacity: a review item.
+    llm.replies.append(
+        json.dumps(
+            {
+                "values": [
+                    {
+                        "product": "AK-1001",
+                        "attribute": "capacity",
+                        "value": "1.2 L",
+                        "quote": "Capacity: 1.2 L",
+                    }
+                ]
+            }
+        )
+    )
+    supplier = create_supplier(client, alice, "Spec supplier")
+    batch_id = create_batch_for(client, alice, supplier)
+    upload(client, store, alice, batch_id, "prices.csv", SHEET)
+    upload(client, store, alice, batch_id, "specs.pdf",
+           samples.text_pdf([["Glass jug", "Model AK-1001", "Capacity: 1.2 L"]]))  # fmt: skip
+    submit(client, alice, batch_id)
+    drain()
+
+    # Copy was written for the products with nothing to review; the jug waits.
+    assert sorted(asked) == ["AK-1002", "AK-1003"]
+    jug = _by_key(_state(client, alice, batch_id))["AK-1001"]
+    assert (jug["state"], jug["open_reviews"], jug["can_generate"]) == ("none", 1, True)
+    assert jug["reasons"][0].startswith("Waiting for 1 review item")
+
+    tasks = client.get(f"/batches/{batch_id}/review-tasks", headers=alice).json()["items"]
+    conflict = next(t for t in tasks if t["kind"] == "attribute_conflict")
+    chosen = next(v for v in conflict["values"] if v["display"] == "1.5 L")
+    decision = client.post(
+        f"/review-tasks/{conflict['id']}/decision",
+        json={"decision": "choose", "value_id": chosen["id"]},
+        headers=alice,
+    )
+    assert decision.status_code == 200, decision.text
+    # The batch's last review item: copy for the jug is queued at once.
+    assert decision.json()["copy_writing"] == "queued"
+    assert drain() == ["enrich_plan", "enrich_product"]
+    assert asked[-1] == "AK-1001"
+    jug = _by_key(_state(client, alice, batch_id))["AK-1001"]
+    assert (jug["state"], jug["reasons"]) == ("generated", [])
+    content = _product(client, alice, jug["product_id"])["generated_content"]
+    assert any("1.5 L" in claim["text"] for claim in content["claims"])

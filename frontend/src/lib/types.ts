@@ -366,6 +366,7 @@ export type DecisionResult = {
   accepted_product_id: string | null;
   shown: string | null;
   photo_values: PhotoValuesStatus;
+  copy_writing: "queued" | "waiting" | "not_needed";
 };
 
 export type VariantPair = {
@@ -408,6 +409,8 @@ export type ProductEnrichment = {
   facts: number;
   left_out: number;
   can_generate: boolean;
+  open_reviews: number;
+  reasons: string[];
 };
 
 export type BatchEnrichment = {
@@ -458,6 +461,8 @@ export type GeneratedContent = {
   created_at: string | null;
   left_out: LeftOutAttribute[];
   can_generate: boolean;
+  open_reviews: number;
+  reasons: string[];
 };
 
 // Catalog checks (M8).

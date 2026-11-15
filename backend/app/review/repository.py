@@ -318,7 +318,7 @@ def decide_attribute(
         {"state": "reviewer_set", "selected_value_id": str(selected or ""), "value": shown},
     )
     conn.execute(query("matching", "resolve_task"), {"task_id": task_id})
-    return {"product_id": task["product_id"], "shown": shown}
+    return {"product_id": task["product_id"], "shown": shown, "batch_id": task["batch_id"]}
 
 
 def decide_category(conn: Connection[Any], owner: str, task_id: UUID, category_id: UUID) -> Row:
@@ -362,4 +362,8 @@ def decide_category(conn: Connection[Any], owner: str, task_id: UUID, category_i
         {"category_id": str(category_id), "state": "assigned", "name": chosen["name"]},
     )
     conn.execute(query("matching", "resolve_task"), {"task_id": task_id})
-    return {"product_id": task["product_id"], "shown": chosen["name"]}
+    return {
+        "product_id": task["product_id"],
+        "shown": chosen["name"],
+        "batch_id": task["batch_id"],
+    }

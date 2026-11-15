@@ -18,7 +18,7 @@ const ACTIVE = new Set(["queued", "running"]);
 export const ENRICHMENT_STATE_TEXT: Record<EnrichmentState, string> = {
   none: "Not written yet",
   generated: "Written",
-  out_of_date: "Out of date: its facts changed",
+  out_of_date: "Out of date",
   skipped: "Not enough settled information",
   failed: "Couldn't be written",
 };
@@ -165,13 +165,14 @@ export function EnrichmentPanel({
 }
 
 function EnrichmentRow({ item }: { item: ProductEnrichment }) {
+  const waiting = item.state === "none" && item.open_reviews > 0;
   const warn = item.state === "failed" || item.state === "out_of_date";
   return (
     <li>
       <span>
         <Link href={`/products/${item.product_id}`}>{item.product_key}</Link>{" "}
-        <span className={`badge${warn ? " warning" : ""}`}>
-          {ENRICHMENT_STATE_TEXT[item.state]}
+        <span className={`badge${warn ? " warning" : waiting ? " info" : ""}`}>
+          {waiting ? "Waits for review" : ENRICHMENT_STATE_TEXT[item.state]}
         </span>
       </span>
       <span className="muted">
@@ -179,6 +180,13 @@ function EnrichmentRow({ item }: { item: ProductEnrichment }) {
         {item.left_out > 0 && ` · ${item.left_out} left out`}
       </span>
       {item.message && <p className="muted file-reason">{item.message}</p>}
+      {item.reasons.length > 0 && item.state !== "failed" && (
+        <ul className="reasons file-reason">
+          {item.reasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      )}
     </li>
   );
 }

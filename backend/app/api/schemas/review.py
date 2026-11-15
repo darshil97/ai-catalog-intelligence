@@ -141,6 +141,12 @@ class DecisionResult(BaseModel):
         "active, so read them later with POST /batches/{id}/photo-values. not_needed: nothing "
         "to read.",
     )
+    copy_writing: Literal["queued", "waiting", "not_needed"] = Field(
+        "not_needed",
+        description="queued: this was the batch's last review item, so copy is being written "
+        "for products that need it. waiting: another run is active, so generate it later. "
+        "not_needed: review items remain, or no copy needs writing.",
+    )
 
 
 class PhotoValuesResult(BaseModel):

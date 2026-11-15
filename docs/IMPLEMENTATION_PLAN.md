@@ -554,7 +554,7 @@ Unrelated and pre-existing: running `test_ingest_kinds` before `test_vision` in 
 - **New pages:** a landing page (what it does, an example of a traced value, the eight pipeline steps, six features, sign-in) and `/how-it-works` (six steps with tips, and the preview limits). Shared text in `src/lib/content.ts`.
 - **Shell:** a header with pill navigation (Suppliers, How it works) and the account once signed in, a Sign in button when not, and a footer on every page.
 - **App pages:** suppliers as cards; a supplier's batches with status badges; a batch page with breadcrumb, progress steps, a Files card, and results in tabs; a product page in two columns of cards.
-- **After the owner's first review (2026-11-15):** a highlighted "Next step" card on a processed batch (decide review items, then write copy, then fix errors, then "ready"); counts on the Review, Checks and Sources tabs; a processed batch's Files folded away at the bottom. Copy is now written automatically, and counts written as words no longer fail the copy checks (D37, amended).
+- **After the owner's first review (2026-11-15):** a highlighted "Next step" card on a processed batch (decide review items, then write copy, then fix errors, then "ready"); counts on the Review, Checks and Sources tabs; a processed batch's Files folded away at the bottom. Copy is now written automatically, and counts written as words no longer fail the copy checks (D37, amended). Shipped as `7cd31b8` (CI run 44); the API and worker run `7cd31b8`. Then copy waits for a product's review and is written when the batch's last review item is decided, and each product shows why its copy is needed (D37, amended).
 - **Checked:** type check, lint and production build; the landing and guide pages in the browser at desktop and phone widths, light and dark. Signed-in pages weren't checked before shipping: sign-in fails in the desktop app's browser pane (Google returns, but the session exchange answers 400 "Verification not found", most likely a dropped cookie), so they're reviewed on the live site.
 
 ---
@@ -563,6 +563,8 @@ Unrelated and pre-existing: running `test_ingest_kinds` before `test_vision` in 
 
 **Scope**
 - Full review UI: editing, approving, bulk actions.
+- **Editing a product's values** (owner, 2026-11-15): set or clear any value, not only through a review item, recorded in the audit trail. Found in testing: a missing brand or two products sharing a barcode raise errors with nothing in the app to fix them, because neither opens a review item. Each check gets a "fix" link to the value it's about, and the edit flows through (check cleared, copy rewritten).
+- **Duplicates:** mark a flagged pair as the same product, so one is left out of approval and export.
 - Audit trail.
 
 **Acceptance criteria**
