@@ -91,6 +91,9 @@ export type BatchRun = {
   products_kept: number | null;
   products_discarded: number | null;
   image_duplicate_groups: number | null;
+  images_matched: number | null;
+  images_to_review: number | null;
+  images_unmatched: number | null;
   stages: RunStage[];
   errors: RunError[];
 };
@@ -154,8 +157,18 @@ export type Observation = {
   mapped_by: "known_name" | "llm";
 };
 
+export type ProductImage = {
+  image_id: string;
+  image_name: string;
+  position: number;
+  thumbnail_url: string | null;
+  decision: "auto_accepted" | "accepted";
+  decided_by: string;
+};
+
 export type ProductDetail = Product & {
   observations: Observation[];
+  images: ProductImage[];
   differing_attributes: string[];
 };
 
@@ -245,3 +258,56 @@ export type BatchImage = {
 };
 
 export type BatchImageList = { batch_id: string; items: BatchImage[] };
+
+export type MatchEvidence = {
+  signal: string;
+  points: number;
+  text: string;
+  detail: Record<string, unknown>;
+};
+
+export type MatchCandidate = {
+  id: string;
+  product_id: string;
+  product_key: string;
+  score: number;
+  decision: "auto_accepted" | "needs_review" | "accepted" | "rejected";
+  decided_by: string;
+  evidence: MatchEvidence[];
+};
+
+export type ImageMatch = MatchCandidate & {
+  image_id: string;
+  source_file_id: string;
+  image_name: string;
+  decided_at: string;
+  values_read_at: string | null;
+};
+
+export type ImageMatchList = { batch_id: string; items: ImageMatch[] };
+
+export type ReviewTask = {
+  id: string;
+  status: "open" | "resolved";
+  image_id: string;
+  source_file_id: string;
+  image_name: string;
+  thumbnail_url: string | null;
+  candidates: MatchCandidate[];
+  created_at: string;
+  resolved_at: string | null;
+};
+
+export type ReviewTaskList = {
+  batch_id: string;
+  pending_photo_values: number;
+  items: ReviewTask[];
+};
+
+export type PhotoValuesStatus = "queued" | "waiting" | "not_needed";
+
+export type DecisionResult = {
+  task_id: string;
+  accepted_product_id: string | null;
+  photo_values: PhotoValuesStatus;
+};

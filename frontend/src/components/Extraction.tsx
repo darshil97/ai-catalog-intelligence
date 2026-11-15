@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 
+import { useState } from "react";
+
 import { ImageGrid } from "@/components/ImageGrid";
+import { ReviewPanel } from "@/components/ReviewPanel";
 import { describeLocation, FLAG_TEXT } from "@/lib/location";
 import type {
   BatchRun,
@@ -38,6 +41,7 @@ export function Extraction({
   run: BatchRun;
 }) {
   const products = useApiResource<ProductList>(`/batches/${batchId}/products`);
+  const [version, setVersion] = useState(0);
   const sheets = useApiResource<SheetList>(`/batches/${batchId}/sheets`);
   const documents = useApiResource<DocumentList>(
     `/batches/${batchId}/documents`,
@@ -133,7 +137,14 @@ export function Extraction({
         </p>
       )}
 
-      <ImageGrid batchId={batchId} />
+      <ReviewPanel
+        batchId={batchId}
+        onDecided={() => {
+          setVersion((current) => current + 1);
+          products.reload();
+        }}
+      />
+      <ImageGrid batchId={batchId} version={version} />
 
       {rowNotes.length > 0 && <RowNotes notes={rowNotes} />}
     </>

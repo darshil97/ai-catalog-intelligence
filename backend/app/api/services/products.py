@@ -3,7 +3,7 @@
 from typing import Any
 from uuid import UUID
 
-from app import catalog, images, products
+from app import catalog, images, products, review
 from app.api.services.common import database, not_found
 from app.auth import Profile
 from app.config import get_catalog_config, get_images_config
@@ -26,13 +26,28 @@ def list_products(profile: Profile, batch_id: UUID) -> dict[str, Any]:
 
 
 def get_product(profile: Profile, product_id: UUID) -> dict[str, Any]:
-    """Return a product with its observations, or 404."""
+    """Return a product with its observations and accepted images, or 404."""
+    from app.api.services.review import thumbnail_url
+
     limit = get_catalog_config()["max_list_items"]
     try:
         with database("get_product") as conn:
-            return products.get_product(conn, profile.user_id, product_id, limit)
+            product = products.get_product(conn, profile.user_id, product_id, limit)
+            pictures = review.product_images(conn, profile.user_id, product_id)
     except products.ProductNotFoundError:
         not_found()
+    product["images"] = [
+        {
+            "image_id": row["image_id"],
+            "image_name": row["image_name"],
+            "position": row["position"],
+            "thumbnail_url": thumbnail_url(row["thumbnail_s3_key"]),
+            "decision": row["decision"],
+            "decided_by": row["decided_by"],
+        }
+        for row in pictures
+    ]
+    return product
 
 
 def list_sheets(profile: Profile, batch_id: UUID) -> dict[str, Any]:

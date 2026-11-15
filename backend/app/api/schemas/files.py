@@ -141,6 +141,11 @@ class BatchRun(BaseModel):
     image_duplicate_groups: int | None = Field(
         None, description="Groups of images that show the same picture."
     )
+    images_matched: int | None = Field(None, description="Images linked to a product.")
+    images_to_review: int | None = Field(
+        None, description="Images whose product needs a person to confirm."
+    )
+    images_unmatched: int | None = Field(None, description="Images with no likely product.")
     stages: list[RunStage] = Field(..., description="Stage progress, in order.")
     errors: list[RunError] = Field(
         ..., description="Failures, and rows or cells that couldn't be used, oldest first."

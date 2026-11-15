@@ -77,6 +77,9 @@ class ProductDetail(Product):
     observations: list[Observation] = Field(
         ..., description="Values grouped by attribute, then in file order."
     )
+    images: list["ProductImage"] = Field(
+        default_factory=list, description="Photos accepted as showing it, in file order."
+    )
     differing_attributes: list[str] = Field(
         ...,
         description="Attribute codes whose sources don't all give the same value (ignoring "
@@ -212,3 +215,17 @@ class BatchImageList(BaseModel):
 
     batch_id: UUID = Field(..., description="The batch.")
     items: list[BatchImage] = Field(..., description="Images, in upload order.")
+
+
+class ProductImage(BaseModel):
+    """A photo accepted as showing a product."""
+
+    image_id: UUID = Field(..., description="The image.")
+    image_name: str = Field(..., description="Its file name.")
+    position: int = Field(..., description="Order among the product's photos.")
+    thumbnail_url: str | None = Field(None, description="A short-lived link to a small JPEG.")
+    decision: str = Field(..., description="auto_accepted or accepted (by a person).")
+    decided_by: str = Field(..., description="'system', or the person who accepted it.")
+
+
+ProductDetail.model_rebuild()

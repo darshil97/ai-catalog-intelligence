@@ -57,6 +57,30 @@ function ProductView() {
           {FLAG_TEXT[flag] ?? flag}
         </p>
       ))}
+      {data.images.length > 0 && (
+        <>
+          <h2>Photos</h2>
+          <ul className="photo-strip">
+            {data.images.map((image) => (
+              <li key={image.image_id}>
+                {image.thumbnail_url ? (
+                  // Signed links to private storage: next/image can't optimise them.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={image.thumbnail_url} alt={image.image_name} />
+                ) : (
+                  <span className="thumb-missing">No preview</span>
+                )}
+                <span className="muted">
+                  {image.image_name}
+                  {image.decision === "accepted"
+                    ? " · confirmed by you"
+                    : " · its code is on it"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       <h2>What the files say</h2>
       <p className="muted">
         Each value is exactly as written in the file. Where the files give

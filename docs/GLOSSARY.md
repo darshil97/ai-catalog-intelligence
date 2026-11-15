@@ -89,6 +89,9 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Cosine similarity** | A score for how close two embeddings are. | Finding visually similar images. |
 | **HNSW** | An index that makes vector search faster but approximate, and takes storage. | Not used initially. |
 | **OCR** | Optical Character Recognition: reading text from images. | Reading a model number on a box. |
+| **Candidate** | A product an image might show, with its score and evidence. | `brand.jpg` might be AK-1003 or AK-1004. |
+| **Auto-accept** | Linking an image to a product without a person, allowed only when the image's own code names exactly one product. | A label photo showing `B094YFFSMY`. |
+| **Audit trail** | The record of every review decision, with before and after, who and when. It can't be changed. | `review_events`. |
 | **Signal** | One independent piece of evidence for an image↔SKU match. | SKU in the filename. |
 | **LLM** | Large Language Model: an AI that reads and writes text. | Writing product descriptions. |
 | **Amazon Bedrock** | AWS's service for calling AI models. | Called by the worker. |

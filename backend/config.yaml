@@ -223,6 +223,28 @@ images:
   # Signed thumbnail links last this long.
   thumbnail_url_seconds: 900
 
+# Which product each image shows (M5B). A code found for the image is the only signal that can
+# accept a match by itself, and only when no other product's code is found for the same image.
+matching:
+  # Points each signal adds to an image-product pair. The score is capped at 1.
+  weights:
+    code_in_text: 1.0
+    code_in_name: 1.0
+    from_product_page: 0.6
+    same_picture: 0.5
+    brand_or_name_in_text: 0.25
+    looks_like_accepted: 0.4
+    # Only in a batch with one product: enough for review, never for acceptance.
+    only_product: 0.2
+  # Looks-alike only counts from this similarity up, and scales to its full weight at 1.0.
+  visual_min_similarity: 0.70
+  # Brand and name words shorter than this are ignored, so "Set" or "Mug" alone can't match.
+  min_text_match_chars: 4
+  # Pairs scoring below this aren't stored. Above it, they go to review unless auto-accepted.
+  review_threshold: 0.2
+  # Candidates kept per image, best first.
+  max_candidates_per_image: 3
+
 # Image embeddings come from Bedrock, from the worker only (D34). Changing the model means a new
 # embedding_models row, and a new table if the dimension changes.
 embeddings:
@@ -331,6 +353,13 @@ pipelines:
       job_type: images_plan
     - stage: image_groups
       job_type: images_group
+    # Which product each image shows, then values from photos accepted for a product.
+    - stage: associate
+      job_type: associate_images
+  # Values from photos a person accepted for a product, after processing finished.
+  photo_values:
+    - stage: photo_values
+      job_type: photo_values_plan
 
 # Admin-only diagnostic runs of the no-op pipeline.
 test_runs:

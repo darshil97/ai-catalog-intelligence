@@ -88,7 +88,8 @@ def test_worker_does_not_need_web_packages() -> None:
         names = __import__("app.jobs.base", fromlist=["x"]).get_registered_handler_names()
         assert {"noop", "ingest_file", "extract_select", "extract_rows", "documents_plan",
                 "documents_read", "document_values", "images_plan", "images_process",
-                "images_group"} <= names
+                "images_group", "associate_images", "photo_values_plan",
+                "photo_value"} <= names
         """
     )
     assert result.returncode == 0, result.stderr

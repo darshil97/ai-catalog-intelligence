@@ -73,7 +73,12 @@ def _thumbnail_id(file_id: UUID) -> UUID:
     return uuid.uuid5(file_id, "thumbnail")
 
 
-def _model_id() -> UUID:
+def embedding_model_id() -> UUID:
+    """Return the configured embedding model's ID.
+
+    Raises:
+        PermanentJobError: if no such model with this dimension is recorded.
+    """
     config = get_embeddings_config()
     with get_pool().connection() as conn:
         row = conn.execute(
@@ -136,7 +141,7 @@ class ImagesProcessHandler:
         """
         job = context.job
         settings = get_images_config()
-        model_id = _model_id()
+        model_id = embedding_model_id()
         for file_id in job.payload["file_ids"]:
             context.check_interrupted()
             with get_pool().connection() as conn:
@@ -328,7 +333,7 @@ class ImagesGroupHandler:
         job = context.job
         batch_id = UUID(job.payload["batch_id"])
         settings = get_images_config()
-        model_id = _model_id()
+        model_id = embedding_model_id()
         with get_pool().connection() as conn:
             images = {
                 row["id"]: row

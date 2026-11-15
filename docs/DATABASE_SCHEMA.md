@@ -6,7 +6,8 @@
 
 - **Spreadsheet extraction** (`categories`, `attribute_definitions`, `model_runs`, `column_mappings`, `spreadsheet_sheets`, `source_records`, `products`, `attribute_observations`): migration `0005` (M3), applied to `production`, `dev` and `test`.
 - **Document extraction** (`ocr_results`, `document_files`, `products.origin`): migration `0006` (M4), applied to `production` and `test`. `dev` is still at `0005`.
-- **Images** (`embedding_models`, `images`, `image_duplicate_groups`, `image_embeddings`, `pipeline_runs.image_duplicate_groups`): migration `0007` (M5A), applied to `test` only so far.
+- **Images** (`embedding_models`, `images`, `image_duplicate_groups`, `image_embeddings`, `pipeline_runs.image_duplicate_groups`): migration `0007` (M5A), applied to `production` and `test`. `dev` is still at `0005`.
+- **Image association and review** (`image_match_candidates`, `product_images`, `review_tasks`, `review_events`, image match counts on `pipeline_runs`): migration `0008` (M5B), applied to `test` only so far.
 
 This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
@@ -355,6 +356,8 @@ One row per PDF or image read by the `documents` stage (M4): `source_file_id` PK
 
 **Constraint:** `UNIQUE(image_id, product_id)`. Auto-accept needs an exact identifier hit with no competing candidate.
 
+**As built (M5B):** also `batch_id`, `values_read_at` (when the photo was read for the product's values) and `created_at`. `decided_by` is `system` or a user ID. `signals` holds one entry per signal that fired: `signal`, `points`, `detail` and `text` (D35).
+
 ### `product_images`
 
 `product_id` FK, `image_id` FK, `position` INTEGER, `candidate_id` FK, `created_at`. **Primary key:** `(product_id, image_id)`.
@@ -405,11 +408,15 @@ One row per PDF or image read by the `documents` stage (M4): `source_file_id` PK
 
 `id`, `owner_user_id` FK, `product_id` FK nullable, `kind` (`image_match`, `attribute_conflict`, `category`, `llm_output`, ...), `subject_ref` JSONB, `status` (`open`, `resolved`), `created_at`, `resolved_at`.
 
+**As built (M5B):** also `batch_id`. Only `image_match` exists so far, with `subject_ref` `{"image_id"}`, and one task per image (unique on the image).
+
 **Index:** partial `(owner_user_id, created_at) WHERE status = 'open'`.
 
 ### `review_events`
 
 Append-only audit trail: `id`, `actor_user_id` FK, `entity_type`, `entity_id`, `action`, `before` JSONB, `after` JSONB, `created_at`.
+
+**As built (M5B):** also `batch_id`. `actor_user_id` has no foreign key, so the record outlives the person. A trigger refuses updates; rows go only with their batch.
 
 ### `processing_errors`
 
