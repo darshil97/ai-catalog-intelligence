@@ -23,6 +23,7 @@ from app.export.variants import Group, group, group_title
 
 BULLETS = 5
 _HANDLE = re.compile(r"[^a-z0-9]+")
+_OWN_COLUMNS = {"product_name", "brand"}
 _GTIN = re.compile(r"^\d{8}$|^\d{12,14}$")
 
 # Shopify's product CSV columns, in the help page's order, as far as this export fills them.
@@ -47,7 +48,9 @@ def catalog_rows(data: ExportData, links: dict[UUID, str]) -> tuple[list[str], l
         if g.option:
             for item in g.items:
                 variant_of[item.id] = f"{g.lead.key} ({g.option})"
-    names = [a["name"] for a in data.attributes]
+    # Name and brand have their own columns near the front.
+    attributes = [a for a in data.attributes if a["code"] not in _OWN_COLUMNS]
+    names = [a["name"] for a in attributes]
     header = [
         "Product code", "Name", "Brand", "Category", "Variant group", *names, "Title",
         "Description", *[f"Bullet {n}" for n in range(1, BULLETS + 1)], "Photo links",
@@ -64,7 +67,7 @@ def catalog_rows(data: ExportData, links: dict[UUID, str]) -> tuple[list[str], l
                 item.value("brand") or "",
                 item.category_path or "",
                 variant_of.get(item.id, ""),
-                *[item.value(a["code"]) or "" for a in data.attributes],
+                *[item.value(a["code"]) or "" for a in attributes],
                 item.title,
                 item.description,
                 *bullets,

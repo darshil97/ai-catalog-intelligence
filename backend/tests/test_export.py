@@ -53,7 +53,11 @@ def _data(*items: Item, pairs: dict[frozenset[UUID], str] | None = None) -> Expo
         batch={"name": "Vardhan Nov", "supplier_name": "Vardhan"},
         profile="shopify",
         profile_name="Shopify",
-        attributes=[{"code": "color", "name": "Colour"}, {"code": "capacity", "name": "Capacity"}],
+        attributes=[
+            {"code": "brand", "name": "Brand"},
+            {"code": "color", "name": "Colour"},
+            {"code": "capacity", "name": "Capacity"},
+        ],
         items=list(items),
         left_out=[{"product_key": "AK-9", "reason": "Not approved yet."}],
         variant_pairs=pairs or {},
@@ -109,6 +113,8 @@ def test_csv_has_a_bom_every_attribute_and_safe_cells() -> None:
     rows = _rows(body)
     assert list(rows[0])[:5] == ["Product code", "Name", "Brand", "Category", "Variant group"]
     assert {"Colour", "Capacity", "Title", "Bullet 5", "Photo links"} <= set(rows[0])
+    header = body.decode("utf-8-sig").splitlines()[0].split(",")
+    assert len(header) == len(set(header)), "a column appears twice"
     assert rows[0]["Colour"] == "Red" and rows[0]["Photo links"].startswith("https://s3.example")
     assert rows[1]["Name"] == "'=HYPERLINK(1)" and rows[1]["Title"] == "'=HYPERLINK(1)"
 
