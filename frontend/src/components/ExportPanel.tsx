@@ -56,10 +56,12 @@ export function ExportPanel({
   batchId,
   approval,
   version,
+  onMade,
 }: {
   batchId: string;
   approval: BatchApproval | null;
   version: number;
+  onMade?: () => void;
 }) {
   const exports = useApiResource<ExportList>(`/batches/${batchId}/exports`);
   const { reload } = exports;
@@ -84,6 +86,7 @@ export function ExportPanel({
         jsonBody("POST", { format }),
       );
       setMade(result);
+      onMade?.();
       window.location.assign(result.download_url);
     } catch (caught) {
       setError(
