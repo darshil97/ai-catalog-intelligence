@@ -305,6 +305,9 @@ normalization:
 enrichment:
   # The grounding rules' version, stored with each generated text.
   rules_version: enrich@1
+  # Write copy at the end of processing and after confirmed photos are read (owner, 2026-11-15).
+  # Off: copy is written only when someone presses Generate. Tests turn it off.
+  auto: true
   # Only these attribute states feed text.
   usable_states: [verified, reviewer_set]
   # Never given to the model.
@@ -526,12 +529,17 @@ pipelines:
     # Standard values, the value each product shows, variants, then categories.
     - stage: normalize
       job_type: normalize_batch
+    # Titles, descriptions and bullets from settled values (D37), when enrichment.auto is on.
+    - stage: enrich
+      job_type: enrich_plan
   # Values from photos a person accepted for a product, after processing finished.
   photo_values:
     - stage: photo_values
       job_type: photo_values_plan
     - stage: normalize
       job_type: normalize_batch
+    - stage: enrich
+      job_type: enrich_plan
 
   # Titles, descriptions and bullets, started from the batch page (D37). One chunk per product.
   enrich:

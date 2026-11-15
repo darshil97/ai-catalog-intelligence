@@ -310,6 +310,7 @@ def test_submit_queues_the_batch_and_charges_once(
         "image_groups",
         "associate",
         "normalize",
+        "enrich",
     ]
     assert client.get(f"/batches/{batch_id}", headers=alice).json()["status"] == "queued"
     assert client.get(f"/batches/{batch_id}/run", headers=alice).json()["run_id"] == run["run_id"]

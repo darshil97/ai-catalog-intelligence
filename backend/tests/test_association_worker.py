@@ -190,7 +190,7 @@ def test_photos_of_one_product_are_confirmed_by_a_person_and_their_values_read(
     assert response.status_code == 200, response.text
     assert response.json()["photo_values"] == "queued"
     ran = drain()
-    assert ran == ["photo_values_plan", "photo_value", "normalize_batch"]
+    assert ran == ["photo_values_plan", "photo_value", "normalize_batch", "enrich_plan"]
 
     product = client.get(f"/products/{candidate['product_id']}", headers=alice).json()
     weights = sorted(

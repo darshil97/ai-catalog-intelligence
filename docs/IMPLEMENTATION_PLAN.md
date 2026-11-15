@@ -548,13 +548,14 @@ Unrelated and pre-existing: running `test_ingest_kinds` before `test_vision` in 
 
 ## UI redesign (between M8 and M9)
 
-**Status:** owner's request on 2026-11-15, before M9. Design chosen from options in `ui-options/` (D39). Built on branch `ui-redesign`; not yet shipped.
+**Status:** owner's request on 2026-11-15, before M9. Design chosen from options in `ui-options/` (D39). Shipped on 2026-11-15 as `6ada9e1`; Vercel serves it. Waiting for the owner's review of the signed-in pages.
 
 - **Design system:** Bazaar · Indigo tokens, Fraunces and DM Sans, cards, badges, tabs, stepper and stats in `globals.css`; dark mode follows the system.
 - **New pages:** a landing page (what it does, an example of a traced value, the eight pipeline steps, six features, sign-in) and `/how-it-works` (six steps with tips, and the preview limits). Shared text in `src/lib/content.ts`.
 - **Shell:** a header with pill navigation (Suppliers, How it works) and the account once signed in, a Sign in button when not, and a footer on every page.
 - **App pages:** suppliers as cards; a supplier's batches with status badges; a batch page with breadcrumb, progress steps, a Files card, and results in tabs; a product page in two columns of cards.
-- **Checked:** type check, lint and production build; the landing and guide pages in the browser at desktop and phone widths, light and dark. Signed-in pages weren't checked in a browser, because they need a running API and a sign-in.
+- **After the owner's first review (2026-11-15):** a highlighted "Next step" card on a processed batch (decide review items, then write copy, then fix errors, then "ready"); counts on the Review, Checks and Sources tabs; a processed batch's Files folded away at the bottom. Copy is now written automatically, and counts written as words no longer fail the copy checks (D37, amended).
+- **Checked:** type check, lint and production build; the landing and guide pages in the browser at desktop and phone widths, light and dark. Signed-in pages weren't checked before shipping: sign-in fails in the desktop app's browser pane (Google returns, but the session exchange answers 400 "Verification not found", most likely a dropped cookie), so they're reviewed on the live site.
 
 ---
 

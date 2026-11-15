@@ -76,6 +76,7 @@ function BatchDetail() {
   }
 
   const editable = EDITABLE.has(batch.data.status);
+  const processed = batch.data.status === "completed";
   const uploading = uploads.some(
     (upload) => !["done", "failed"].includes(upload.progress.phase),
   );
@@ -181,49 +182,67 @@ function BatchDetail() {
         </p>
       )}
 
-      <section className="section">
-        <div className="card-head">
-          <h2>Files</h2>
-          <span className="muted">
-            {uploadedCount} {uploadedCount === 1 ? "file" : "files"}
-          </span>
-        </div>
-        {editable && (
-          <DropZone disabled={uploading || submitting} onFiles={addFiles} />
-        )}
-        {uploads.length > 0 && <UploadList uploads={uploads} />}
-
-        <FileList
-          files={files.data?.items ?? []}
-          editable={editable && !uploading}
-          onRemove={removeFile}
-        />
-
-        {editable && (
-          <div className="row">
-            <ConfirmButton
-              className="button primary"
-              disabled={uploading || submitting || uploadedCount === 0}
-              label={
-                submitting
-                  ? "Starting…"
-                  : batch.data.status === "failed"
-                    ? "Try processing again"
-                    : "Process batch"
-              }
-              question={processQuestion(me.data)}
-              confirmLabel="Process"
-              onConfirm={process}
-            />
-            <p className="muted">{usageText(me.data)}</p>
+      {!processed && (
+        <section className="section">
+          <div className="card-head">
+            <h2>Files</h2>
+            <span className="muted">
+              {uploadedCount} {uploadedCount === 1 ? "file" : "files"}
+            </span>
           </div>
-        )}
-      </section>
+          {editable && (
+            <DropZone disabled={uploading || submitting} onFiles={addFiles} />
+          )}
+          {uploads.length > 0 && <UploadList uploads={uploads} />}
+
+          <FileList
+            files={files.data?.items ?? []}
+            editable={editable && !uploading}
+            onRemove={removeFile}
+          />
+
+          {editable && (
+            <div className="row">
+              <ConfirmButton
+                className="button primary"
+                disabled={uploading || submitting || uploadedCount === 0}
+                label={
+                  submitting
+                    ? "Starting…"
+                    : batch.data.status === "failed"
+                      ? "Try processing again"
+                      : "Process batch"
+                }
+                question={processQuestion(me.data)}
+                confirmLabel="Process"
+                onConfirm={process}
+              />
+              <p className="muted">{usageText(me.data)}</p>
+            </div>
+          )}
+        </section>
+      )}
 
       {run.data && <RunPanel run={run.data} />}
       {run.data?.status === "succeeded" && (
         // Keyed by the run, so a batch processed again loads its new results.
         <Extraction key={run.data.run_id} batchId={batchId} run={run.data} />
+      )}
+      {processed && (
+        // Once processed, the files are reference: folded away at the bottom.
+        <details className="section">
+          <summary>
+            Files
+            <span className="muted" style={{ marginLeft: "auto" }}>
+              {uploadedCount} {uploadedCount === 1 ? "file" : "files"}
+            </span>
+          </summary>
+          <FileList
+            files={files.data?.items ?? []}
+            editable={false}
+            onRemove={removeFile}
+          />
+        </details>
       )}
     </div>
   );

@@ -332,3 +332,39 @@ def test_lengths_and_counts_come_from_config() -> None:
 def test_malformed_replies_are_refused(data: dict[str, Any]) -> None:
     with pytest.raises(ValueError):
         EnrichmentReply.model_validate(data)
+
+
+# Counts written as words (found live, 2026-11-15: every product was refused for these) -------
+
+
+@pytest.mark.parametrize(
+    ("pack", "sentence"),
+    [
+        ("1", "The jug is supplied as a single unit."),
+        ("1", "The bottle is packaged singly."),
+        ("1", "Each package contains one unit."),
+        ("2", "The product is sold as a pack of two mugs."),
+        ("3", "The set includes three bowls."),
+    ],
+)
+def test_a_count_written_as_a_word_uses_its_fact(pack: str, sentence: str) -> None:
+    rows = [row for row in ROWS if row["code"] != "pack_quantity"]
+    rows.append(_row("pack_quantity", "Pack quantity", "verified", pack, pack))
+    sheet = _sheet(rows)
+    ids = _ids(sheet)
+    reply = _good(ids)
+    reply["description"][1] = _claim(sentence, ids["pack_quantity"])
+    reply["bullets"][1] = _claim("Pack of " + pack, ids["pack_quantity"])
+    _check(reply, sheet)
+
+
+def test_a_count_word_no_fact_gives_is_refused() -> None:
+    sheet = _sheet()
+    ids = _ids(sheet)
+    reply = _good(ids)
+    reply["bullets"][1] = _claim("Pack of six", ids["pack_quantity"])
+    problems = _problems(reply, sheet)
+    assert 'has the number "six"' in problems
+    # "one" and "single" are ordinary words too, so they're never refused on their own.
+    reply["bullets"][1] = _claim("A single-handed pour, pack of 2", ids["pack_quantity"])
+    _check(reply, sheet)

@@ -26,6 +26,14 @@ _STOPWORDS = frozenset(
     {"and", "the", "for", "with", "of", "a", "an", "in", "on", "to", "or", "by", "set", "pack"}
 )
 _SENTENCE_END = re.compile(r"[.!?]$")
+# Counts written as words. "One", "single" and the like say a count of 1 when they cite one, but
+# are too common in ordinary wording ("one-touch lid") to be refused on their own.
+_NUMBER_WORDS = {
+    "one": 1, "single": 1, "singly": 1, "individually": 1, "individual": 1,
+    "two": 2, "pair": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+    "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "dozen": 12,
+}  # fmt: skip
+_LOOSE_NUMBER_WORDS = frozenset({"one", "single", "singly", "individually", "individual"})
 # Everything but letters, digits and the symbols banned phrases use ("#1", "100%", "world's").
 _PUNCTUATION = re.compile(r"[^\w#%'’]|_")
 
@@ -216,6 +224,17 @@ class Grounding:
         cited_counts = {
             fact.number for fact in cited if fact.number is not None and not fact.family
         }
+        words = _TOKEN.findall(fold(claim.text))
+        word_numbers = [
+            (word, Decimal(_NUMBER_WORDS[word])) for word in words if word in _NUMBER_WORDS
+        ]
+        cited_words = set(_TOKEN.findall(cited_text))
+        for word, number in word_numbers:
+            if word in _LOOSE_NUMBER_WORDS or number in cited_counts or word in cited_words:
+                continue
+            if re.search(rf"(?<![\d.,]){number}(?![\d])", cited_text):
+                continue
+            problems.append(f'{label} has the number "{word}", which no fact it cites gives.')
         for number_text in bare:
             number, _ = parse_number(number_text)
             if number is not None and number in cited_counts:
@@ -251,8 +270,10 @@ class Grounding:
                     )
                 )
             elif fact.number is not None:
-                used = any(parse_number(n)[0] == fact.number for n in bare) or bool(
-                    _tokens(fact.display) & tokens
+                used = (
+                    any(parse_number(n)[0] == fact.number for n in bare)
+                    or any(number == fact.number for _, number in word_numbers)
+                    or bool(_tokens(fact.display) & tokens)
                 )
             else:
                 used = bool(_tokens(fact.display) & tokens)

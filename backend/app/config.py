@@ -401,7 +401,8 @@ def get_normalization_config() -> dict[str, Any]:
 def get_enrichment_config() -> dict[str, Any]:
     """Return enrichment settings (D37).
 
-    Keys: rules_version, usable_states, excluded_attributes, title_only_attributes (lists),
+    Keys: rules_version, auto (bool: write copy at the end of processing), usable_states,
+    excluded_attributes, title_only_attributes (lists),
     max_versions_per_product, title_max_chars, bullets_min, bullets_max, bullet_max_chars,
     sentences_min, sentences_max, description_max_chars, fact_max_chars (ints), claim_phrases,
     material_words, banned_phrases (lowercased lists).
@@ -428,6 +429,7 @@ def get_enrichment_config() -> dict[str, Any]:
     )
     return {
         "rules_version": str(section["rules_version"]),
+        "auto": _as_bool(section.get("auto", False)),
         **{key: int(section[key]) for key in ints},
         **{key: [str(item).lower() for item in section[key]] for key in lists},
     }
