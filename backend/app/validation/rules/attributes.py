@@ -47,6 +47,7 @@ class RequiredAttribute:
                 yield Finding(
                     product_id=product.id,
                     subject=code,
+                    attribute=code,
                     message=f"{name} is required for {profile['name']}, but "
                     f"{_STATE_TEXT.get(state, _STATE_TEXT['missing'])}.",
                     seen=_seen(attribute),
@@ -71,6 +72,7 @@ class _StateRule:
                 yield Finding(
                     product_id=product.id,
                     subject=code,
+                    attribute=code,
                     message=f"{attribute.name}: {_STATE_TEXT[self.state]}.",
                     seen=_seen(attribute),
                     fix="review",
@@ -107,6 +109,7 @@ class PricePositive:
                 yield Finding(
                     product_id=product.id,
                     subject="price",
+                    attribute="price",
                     message=f"The price is {price.shown}; it must be above zero.",
                     seen=_seen(price),
                     fix="review",
@@ -127,6 +130,7 @@ class CurrencyAssumed:
                 yield Finding(
                     product_id=product.id,
                     subject="price",
+                    attribute="price",
                     message=f"The price {price.shown} had its currency assumed. Check it's right.",
                     seen=_seen(price),
                 )
@@ -156,6 +160,7 @@ class Measurements:
                 yield Finding(
                     product_id=product.id,
                     subject=code,
+                    attribute=code,
                     message=f"{attribute.name} {attribute.shown} {problem}.",
                     seen=_seen(attribute),
                     fix="review",

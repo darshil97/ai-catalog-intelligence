@@ -81,7 +81,7 @@ def _issues(report: BatchReport, product: ProductData) -> dict[tuple[str, str], 
 
 def test_every_rule_is_described_versioned_and_configured() -> None:
     rules = registered_rules()
-    assert len(rules) == 17
+    assert len(rules) == 18
     defaults = get_validation_config()["severities"]
     for code, rule in rules.items():
         assert rule.code == code and rule.version >= 1 and rule.description

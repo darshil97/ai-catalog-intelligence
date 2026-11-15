@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import { ApiError, api } from "@/lib/api";
 import type {
+  BatchApproval,
+  BatchApprovalResult,
   BatchEnrichment,
   BatchValidation,
   EnrichmentStarted,
@@ -28,6 +30,7 @@ export function NextStep({
   openReviews,
   enrichment,
   validation,
+  approval,
   onTab,
   onChanged,
 }: {
@@ -35,6 +38,7 @@ export function NextStep({
   openReviews: number | null;
   enrichment: BatchEnrichment | null;
   validation: BatchValidation | null;
+  approval: BatchApproval | null;
   onTab: (tab: NextTab) => void;
   onChanged: () => void;
 }) {
@@ -54,6 +58,24 @@ export function NextStep({
     } catch (caught) {
       setError(
         caught instanceof ApiError ? caught.message : "Couldn't start writing.",
+      );
+    } finally {
+      setBusy(false);
+      onChanged();
+    }
+  }
+
+  async function approveReady() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api<BatchApprovalResult>(`/batches/${batchId}/approve`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError ? caught.message : "Couldn't approve.",
       );
     } finally {
       setBusy(false);
@@ -108,10 +130,25 @@ export function NextStep({
       text: "Errors must be fixed before a product can be approved. Warnings can be set aside with a reason.",
       action: { label: "See checks", run: () => onTab("checks") },
     };
+  } else if (approval && approval.ready > 0) {
+    step = {
+      title: `${plural(approval.ready, "product is", "products are")} ready to approve`,
+      text: "Approve them to include them in exports. A product that changes after approval needs approving again.",
+      action: {
+        label: busy ? "Approving…" : "Approve all ready",
+        run: approveReady,
+      },
+    };
+  } else if (approval && approval.approved > 0) {
+    step = {
+      title: `${plural(approval.approved, "product is", "products are")} approved`,
+      text: `${approval.approved} of ${total} approved for ${validation.profile_name}. Exporting arrives in the next update.`,
+      done: true,
+    };
   } else {
     step = {
       title: `All ${plural(total, "product is", "products are")} ready for ${validation.profile_name}`,
-      text: "Nothing is waiting for you. Approving and exporting products arrive in the next update.",
+      text: "Nothing is waiting for you.",
       done: true,
     };
   }

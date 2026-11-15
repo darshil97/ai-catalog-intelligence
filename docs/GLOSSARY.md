@@ -88,6 +88,10 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Duplicate (product)** | Two products in one batch that look like the same product entered twice. Flagged, never merged; unlike variants, which differ in colour or size. | Two SKUs with the same barcode. |
 | **Conflict** | Two sources give different values for one attribute. Both are kept, and a person decides. | The spreadsheet says 1.5 L, and the PDF says 1.2 L. |
 | **Review task** | An item waiting for a person's decision. | An uncertain image match. |
+| **Approval** | A person's OK for a product to be exported. Needs no errors, current copy and nothing open in review. | "Approve all ready". |
+| **Changed since approval** | An approved product that changed afterwards, so it needs approving again before export. | A value edited after approval. |
+| **Revision** | A product's change counter. A save from a page that loaded an older one is refused, so two tabs can't overwrite each other. | "This product changed since you opened it." |
+| **Edited copy** | Copy a person wrote by hand. Kept as written and never replaced automatically; checked only as warnings. | Version 3, written by you. |
 | **Fabrication** | An AI stating a specification that no source supports. The product must never do this. | Inventing "dishwasher safe". |
 
 ## Image and AI

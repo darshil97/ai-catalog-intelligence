@@ -107,8 +107,27 @@ export function SignOutButton() {
 
 const APP_LINKS = [
   { href: "/suppliers", label: "Suppliers", match: ["/suppliers", "/batches", "/products"] },
+  { href: "/review", label: "Review", match: ["/review"] },
   { href: "/how-it-works", label: "How it works", match: ["/how-it-works"] },
 ];
+
+/** How many review items wait across all batches, refreshed as you move between pages. */
+function useOpenReviews(active: boolean, pathname: string): number {
+  const [open, setOpen] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    api<{ open: number }>("/review")
+      .then((summary) => {
+        if (!cancelled) setOpen(summary.open);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [active, pathname]);
+  return active ? open : 0;
+}
 
 /** Top bar: the brand, the app's pages once signed in, and the account. */
 export function AppHeader() {
@@ -117,6 +136,7 @@ export function AppHeader() {
   const email =
     account.state === "active" || account.state === "waitlisted" ? account.me.email : null;
   const active = account.state === "active";
+  const openReviews = useOpenReviews(active, pathname);
   return (
     <header className="app-header">
       <Link href="/" className="brand">
@@ -135,6 +155,9 @@ export function AppHeader() {
               aria-current={link.match.some((m) => pathname.startsWith(m)) ? "page" : undefined}
             >
               {link.label}
+              {link.href === "/review" && openReviews > 0 && (
+                <span className="nav-count">{openReviews}</span>
+              )}
             </Link>
           ))}
         </nav>

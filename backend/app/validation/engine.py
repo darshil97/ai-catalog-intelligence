@@ -36,6 +36,7 @@ class Issue:
     fingerprint: str
     other_product_id: UUID | None = None
     fix: str | None = None
+    attribute: str | None = None
     set_aside: Row | None = None
 
     def as_dict(self) -> Row:
@@ -48,6 +49,7 @@ class Issue:
             "message": self.message,
             "other_product_id": self.other_product_id,
             "fix": self.fix,
+            "attribute": self.attribute,
             "set_aside": self.set_aside,
         }
 
@@ -175,6 +177,7 @@ def evaluate(
                     fingerprint=seen_print,
                     other_product_id=finding.other_product_id,
                     fix=finding.fix,
+                    attribute=finding.attribute,
                     set_aside={
                         "reason": override["reason"],
                         "by": override["created_by"],

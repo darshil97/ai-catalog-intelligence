@@ -1450,3 +1450,95 @@ details.section:not([open]) {
 .reasons li + li {
   margin-top: 0.15rem;
 }
+
+/* Human review (M9). */
+.nav-count {
+  margin-left: 0.35rem;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.nav-pill a.active .nav-count {
+  background: var(--accent-fg);
+  color: var(--accent);
+}
+
+.approval-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  max-width: 32rem;
+}
+
+.approval-bar .reasons {
+  text-align: left;
+}
+
+.value-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+
+.value-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+}
+
+.input.wide {
+  max-width: none;
+}
+
+textarea.input {
+  resize: vertical;
+  font: inherit;
+}
+
+.list > li.dimmed {
+  opacity: 0.6;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+
+.timeline li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.timeline .dot {
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-top: 0.45rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.timeline .dot.system {
+  background: var(--border);
+}
+
+tr[id^="value-"] {
+  scroll-margin-top: 6rem;
+}

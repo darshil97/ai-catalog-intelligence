@@ -207,6 +207,7 @@ export type ProductDetail = Product & {
   differing_attributes: string[];
   generated_content: GeneratedContent | null;
   validation: ProductValidation | null;
+  approval: Approval | null;
 };
 
 export type SheetColumn = {
@@ -409,6 +410,7 @@ export type ProductEnrichment = {
   facts: number;
   left_out: number;
   can_generate: boolean;
+  edited: boolean;
   open_reviews: number;
   reasons: string[];
 };
@@ -461,6 +463,7 @@ export type GeneratedContent = {
   created_at: string | null;
   left_out: LeftOutAttribute[];
   can_generate: boolean;
+  edited: boolean;
   open_reviews: number;
   reasons: string[];
 };
@@ -476,7 +479,8 @@ export type ValidationIssue = {
   subject: string;
   message: string;
   other_product_id: string | null;
-  fix: "review" | "generate" | "photos" | null;
+  fix: "review" | "generate" | "photos" | "copy" | null;
+  attribute: string | null;
   set_aside: { reason: string; by: string; at: string } | null;
 };
 
@@ -498,4 +502,55 @@ export type BatchValidation = {
   rules_version: string;
   ready: number;
   items: (ProductValidation & { product_id: string; product_key: string })[];
+};
+
+// Human review (M9).
+
+export type Approval = {
+  product_id: string;
+  product_key: string;
+  state: "draft" | "approved" | "changed_since_approval" | "rejected";
+  revision: number;
+  can_approve: boolean;
+  blockers: string[];
+  approved_at: string | null;
+  approved_by: string | null;
+  rejection_reason: string | null;
+  duplicate_of: string | null;
+};
+
+export type BatchApproval = {
+  batch_id: string;
+  approved: number;
+  ready: number;
+  items: Approval[];
+};
+
+export type Saved = { revision: number; copy_writing?: string };
+
+export type BatchApprovalResult = {
+  approved: string[];
+  skipped: { product_id: string; product_key: string; reasons: string[] }[];
+};
+
+export type HistoryEntry = {
+  at: string;
+  by: string;
+  kind: string;
+  action: string;
+  text: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+};
+
+export type History = { product_id: string; items: HistoryEntry[] };
+
+export type ReviewSummary = {
+  open: number;
+  batches: {
+    batch_id: string;
+    batch_name: string;
+    supplier_name: string;
+    open: number;
+  }[];
 };

@@ -11,6 +11,7 @@
 - **Normalization** (`normalized_values`, `product_attributes`, `variant_candidates`, seeded `categories`, category columns on `products`, two more review kinds): migration `0009` (M6), applied to `production` and `test`. `dev` is still at `0005`.
 - **Enrichment** (`generated_content`, enrichment columns on `products`, `paused` runs with `pause_reason`): migration `0010` (M7), applied to `production` (by CI) and `test`. `dev` is still at `0005`.
 - **Validation** (`validation_overrides`, `batches.target_marketplace`): migration `0011` (M8), applied to `production` (by CI) and `test`. `dev` is still at `0005`.
+- **Human review** (`products.revision`, approval, rejection and `duplicate_of` columns): migration `0012` (M9), applied to `test` only so far.
 
 This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
@@ -226,6 +227,14 @@ These make the schema category-independent. Home & Kitchen is seed data, not cod
 Products beyond the POC limit get no row. Their counts are stored on `pipeline_runs`.
 
 **M4:** `origin` (`spreadsheet` or `document`) says where a product came from. Document products exist only in batches without spreadsheet products.
+
+**M9 (D40):** `status` is now used: `draft`, `approved` or `rejected` (`in_review` stays unused). Also:
+- `revision`: incremented by every change through the API. A save carrying an older one is refused with 409.
+- `approved_at`, `approved_by` and `approval_fingerprint`: the product as approved. The approval holds only while the fingerprint still matches, which is worked out on read.
+- `rejected_at`, `rejected_by` and `rejection_reason`.
+- `duplicate_of`: the product kept, when this one was rejected as its duplicate.
+
+Value and copy edits, approvals, rejections and duplicate decisions are recorded in `review_events`.
 
 **As built (M3):** also `key_source` (`sku`, `model_number` or `gtin`), `match_key` (the key without punctuation, for M5B), `identifier_flags` JSONB (`scientific_notation`, `precision_lost`, `invalid_gtin`) and `source_order` (position in file order). `category_id` stays null until M6.
 

@@ -29,7 +29,8 @@ class ValidationIssue(BaseModel):
     )
     message: str = Field(..., description="What's wrong, for people.")
     other_product_id: UUID | None = Field(None, description="The other product of a duplicate.")
-    fix: str | None = Field(None, description="Where to fix it: review, generate or photos.")
+    fix: str | None = Field(None, description="Where to fix it: review, generate, photos or copy.")
+    attribute: str | None = Field(None, description="The value to edit to fix it, if any.")
     set_aside: SetAsideInfo | None = Field(None, description="Set aside, while unchanged.")
 
 

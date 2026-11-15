@@ -63,6 +63,8 @@ class EnrichPlanHandler:
             # Automatic writing waits until a product's review is done, so its copy includes
             # the values a person settles rather than going out of date at once.
             and not (auto and item.open_reviews)
+            # A person's own copy is never replaced without them asking for it.
+            and not (auto and item.edited)
         ]
         logger.info(
             "Enrichment planned: batch_id=%s products=%d chosen=%d auto=%s",

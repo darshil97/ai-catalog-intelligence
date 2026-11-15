@@ -7,8 +7,9 @@ SELECT id, code, name, parent_id FROM categories;
 -- name: products
 -- A batch's products (or one of them) with their current text, if any.
 SELECT p.id, p.batch_id, p.owner_user_id, p.product_key, p.category_id, p.category_state,
-       p.category_source, p.enrichment_state, p.enrichment_message, p.enrichment_at,
+       p.category_source, p.enrichment_state, p.enrichment_message, p.enrichment_at, p.status,
        g.version, g.input_fingerprint, g.title, g.created_at AS generated_at,
+       g.status AS content_status,
        (SELECT COALESCE(max(v.version), 0) FROM generated_content v WHERE v.product_id = p.id)
            AS versions
 FROM products p

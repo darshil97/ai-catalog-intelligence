@@ -803,3 +803,24 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 **Alternatives considered:** A · Ledger, B · Studio and C · Bazaar (one layout in three colour schemes); D · Editorial (a list beside a detail panel); E · Board (product cards moving across stages, with a slide-over panel); Bazaar in Mehendi green, terracotta, rani pink, peacock and charcoal.
 
 **Consequences:** Styles live in one stylesheet (`frontend/src/app/globals.css`) with colour tokens, so a palette change is a token change. Fonts load through `next/font`. M9's review screens build on these components.
+
+## D40: Human review: edits, approval and history
+
+**Status:** Approved by the owner on 2026-11-15 (M9), all eight decisions as recommended. The proposal is in [proposals/M9_HUMAN_REVIEW.md](proposals/M9_HUMAN_REVIEW.md).
+
+**Decision:** A person can set or clear any value, edit copy by hand, settle duplicates, and approve or reject products. Every change is recorded in `review_events` with its before and after, and shown as the product's history. A product is approved only when it has no errors, current copy and no open review items, and the approval holds only while the product is unchanged.
+
+**Owner's choices (2026-11-15):**
+1. Values are set or cleared with M6's unit rules and stored as a person's decision, which processing never overwrites. Editing a value with an open conflict resolves the conflict.
+2. Hand-edited copy is an `edited` version that automatic writing never replaces. The grounding check runs on it as warnings only.
+3. "Same product" rejects one of a duplicate pair with a reason; "different products" sets the warning aside. A shared barcode is fixed by editing.
+4. Approval needs no errors, current copy and no open review items. It stores a fingerprint and holds only while the product's fingerprint is unchanged, worked out on read.
+5. A `/review` page lists open review items across batches, with a count in the navigation.
+6. Each product has a read-only history from `review_events`.
+7. A product `revision` number refuses stale writes with 409 `changed_elsewhere`.
+8. Bulk actions are "approve all ready" and "reject selected" only.
+
+**Consequences:**
+- Export (M10) reads one function, `approved_products`, which returns only products whose approval still holds.
+- A change after approval, such as an edit, a review decision, a new photo, rewritten copy or a different marketplace, makes the product "changed since approval" until re-approved.
+- Rejected products drop out of duplicate checks, approval and export, but stay visible.
