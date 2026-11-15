@@ -90,12 +90,17 @@ class S3ObjectStore:
             raise _storage_error("presign_upload", exc) from exc
         return PresignedUpload(url=response["url"], fields=dict(response["fields"]))
 
-    def presign_download(self, key: str, expires_seconds: int) -> str:
+    def presign_download(
+        self, key: str, expires_seconds: int, *, save_as: str | None = None
+    ) -> str:
         """Sign a GET for one object. Signing is local: nothing is sent to S3."""
+        params = {"Bucket": self._bucket, "Key": key}
+        if save_as:
+            params["ResponseContentDisposition"] = f'attachment; filename="{save_as}"'
         try:
             url: str = self._s3().generate_presigned_url(
                 "get_object",
-                Params={"Bucket": self._bucket, "Key": key},
+                Params=params,
                 ExpiresIn=expires_seconds,
             )
         except Exception as exc:

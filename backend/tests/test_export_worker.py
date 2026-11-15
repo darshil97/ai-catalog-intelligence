@@ -109,7 +109,8 @@ def test_exports_hold_only_approved_products_and_are_listed(
     body = made.json()
     assert (body["product_count"], body["left_out_count"]) == (2, 1)
     assert body["left_out"] == [{"product_key": "AK-2003", "reason": "Not approved yet."}]
-    assert "/exports/alice/" in body["download_url"] and body["download_url"].endswith("=900")
+    assert "/exports/alice/" in body["download_url"]
+    assert "expires=900&save_as=" in body["download_url"] and body["download_url"].endswith(".csv")
     text = _stored(store, body["download_url"]).decode("utf-8-sig")
     rows = list(csv.DictReader(io.StringIO(text)))
     assert [r["Product code"] for r in rows] == ["AK-2001", "AK-2002"]
@@ -127,7 +128,7 @@ def test_exports_hold_only_approved_products_and_are_listed(
     listed = client.get(f"/batches/{batch_id}/exports", headers=alice).json()["items"]
     assert [e["format"] for e in listed] == ["xlsx", "shopify_csv", "csv"]
     link = client.get(f"/exports/{listed[0]['id']}/download", headers=alice)
-    assert link.status_code == 200 and link.json()["url"].endswith("=900")
+    assert link.status_code == 200 and link.json()["url"].endswith(".xlsx")
 
     # A change after approval leaves the product out of the next export.
     client.put(

@@ -107,7 +107,7 @@ def create(conn: Connection[Any], owner: str, batch_id: UUID, fmt: str) -> Row:
     return {
         **row,
         "left_out": data.left_out,
-        "download_url": store.presign_download(key, DOWNLOAD_SECONDS),
+        "download_url": store.presign_download(key, DOWNLOAD_SECONDS, save_as=filename),
     }
 
 
@@ -132,7 +132,8 @@ def download_url(conn: Connection[Any], owner: str, export_id: UUID) -> str:
     ).fetchone()
     if row is None:
         raise NotFoundError(str(export_id))
-    return get_object_store().presign_download(row["s3_key"], DOWNLOAD_SECONDS)
+    filename = row["s3_key"].rsplit("/", 1)[-1]
+    return get_object_store().presign_download(row["s3_key"], DOWNLOAD_SECONDS, save_as=filename)
 
 
 def decide_variant(conn: Connection[Any], owner: str, variant_id: UUID, decision: str) -> Row:

@@ -56,10 +56,13 @@ class MemoryObjectStore:
             content_type = policy[0] if policy else "application/octet-stream"
             self.objects[key] = (data, content_type)
 
-    def presign_download(self, key: str, expires_seconds: int) -> str:
+    def presign_download(
+        self, key: str, expires_seconds: int, *, save_as: str | None = None
+    ) -> str:
         """Return a link naming the key, so tests can see which object it points at."""
         self._maybe_fail("presign_download")
-        return f"https://storage.tests.invalid/{key}?expires={expires_seconds}"
+        saved = f"&save_as={save_as}" if save_as else ""
+        return f"https://storage.tests.invalid/{key}?expires={expires_seconds}{saved}"
 
     def head(self, key: str) -> ObjectInfo | None:
         """Return size and checksum, or None."""
