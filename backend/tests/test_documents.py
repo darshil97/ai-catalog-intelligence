@@ -19,6 +19,7 @@ from app.ingest.documents.pdf import (
 )
 from app.ingest.documents.values import (
     DROP_NO_IDENTIFIER,
+    DROP_NOT_A_CODE,
     DROP_NOT_ON_PAGE,
     DROP_PRODUCT_UNCLEAR,
     DROP_UNKNOWN_ATTRIBUTE,
@@ -358,3 +359,44 @@ def test_a_code_without_a_label_still_makes_a_product_if_it_looks_like_one() -> 
     )
     assert [p.identifier.key for p in result.new_products] == ["B094YFFSMY"]
     assert len(result.kept) == 2
+
+
+def test_a_logo_is_never_stored_as_a_code() -> None:
+    # Seen live: reading a confirmed box front, the model gave the logo as the model number.
+    # Stored, it would become one of the product's codes, and match every photo of the logo.
+    page = _page("TY-G-O-T", "Bluetooth Extendable", "SELFIE STICK")
+    result = check_link(
+        page,
+        _answer(
+            ("B094YFFSMY", "model_number", "TY-G-O-T", "TY-G-O-T"),
+            ("B094YFFSMY", "product_name", "SELFIE STICK", "SELFIE STICK"),
+        ),
+        {"product-1": ["B094YFFSMY"]},
+        ALLOWED,
+        4,
+    )
+    assert [(k.attribute, k.found.raw_value) for k in result.kept] == [
+        ("product_name", "SELFIE STICK")
+    ]
+    assert [d.code for d in result.dropped] == [DROP_NOT_A_CODE]
+    # A real code still passes, in either mode.
+    real = check_link(
+        _page("Model AK-1003"),
+        _answer(("AK-1003", "model_number", "AK-1003", "Model AK-1003")),
+        {"product-1": ["AK-1003"]},
+        ALLOWED,
+        4,
+    )
+    assert len(real.kept) == 1
+    created = check_create(
+        _page("SKU AK-1005", "Model TY-G-O-T"),
+        _answer(
+            ("AK-1005", "sku", "AK-1005", "SKU AK-1005"),
+            ("AK-1005", "model_number", "TY-G-O-T", "Model TY-G-O-T"),
+        ),
+        ALLOWED,
+        IDENTIFIERS,
+        4,
+    )
+    assert [(k.attribute, k.found.raw_value) for k in created.kept] == [("sku", "AK-1005")]
+    assert [d.code for d in created.dropped] == [DROP_NOT_A_CODE]

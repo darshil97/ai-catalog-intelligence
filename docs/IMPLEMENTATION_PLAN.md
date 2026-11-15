@@ -15,7 +15,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | M3 | Spreadsheet extraction | M2 | Completed |
 | M4 | Document and image text extraction | M3 | Completed |
 | M5A | Image processing | M2, M0B | Completed |
-| M5B | Image association | M3, M4, M5A | In Progress |
+| M5B | Image association | M3, M4, M5A | Completed |
 | M6 | Product normalization | M3, M4 | Not Started |
 | M7 | Catalog enrichment | M6 | Not Started |
 | M8 | Catalog validation | M6, M7 | Not Started |
@@ -400,7 +400,7 @@ About 1.5–2 seconds per image, almost all OCR and the Titan call, so a 25-imag
 
 ## M5B Image association
 
-**Status:** proposal approved by the owner on 2026-11-15 (D35). **In progress:** built and tested locally and against the Neon `test` branch. Not yet committed, deployed or accepted live.
+**Status:** proposal approved by the owner on 2026-11-15 (D35). **Completed on 2026-11-15.** Merged and deployed, migration `0008` applied to `production` (by CI) and `test`, and live acceptance passed (owner, 2026-11-15). `dev` is still at `0005`.
 
 **Scope**
 - Signal registry: SKU/model number, filename, OCR text, brand and attributes, supplier identifiers, visual similarity.
@@ -434,6 +434,10 @@ About 1.5–2 seconds per image, almost all OCR and the Titan call, so a 25-imag
 | Front | Review | 0.52 | "TYGOT" on it, only product, looks like the label (0.75) |
 | Instructions | Review | 0.45 | "TYGOT" on it, only product |
 | Features side | Review | 0.20 | Only product |
+
+**Live acceptance (2026-11-15):** the owner processed the four box photos on Vercel. Processing took 23 seconds: the label photo was accepted automatically and the other three went to review, with the scores above. The owner accepted all three; each decision was recorded, and a separate run read the three photos in 10 seconds. `B094YFFSMY` gained "18.5 cm", "Stainless Steel" and "113 Grams" from the features side, and brand, name and description from the front. The API logs showed no errors.
+
+**Fix after release:** reading the confirmed front photo stored its logo, "TY-G-O-T", as the product's model number. Stored codes are matching evidence, so a later photo of the logo would have matched on a "code". A SKU or model number read from a page or photo must now look like a code (a digit, and at least four letters and digits), as for making a product; others are dropped and reported. The value already stored in production is left as recorded.
 
 Generated cases in the tests cover lookalike products, conflicting codes, two codes on one photo, near-duplicates and file names.
 
