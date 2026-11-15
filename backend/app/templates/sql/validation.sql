@@ -12,8 +12,11 @@ RETURNING id, target_marketplace;
 
 -- name: products
 SELECT p.id, p.product_key, p.key_source, p.identifier_flags, p.category_id, p.category_state,
-       p.category_source, p.enrichment_state, p.enrichment_message,
-       g.title AS generated_title, g.bullets AS generated_bullets, g.input_fingerprint
+       p.category_source, p.enrichment_state, p.enrichment_message, p.status, p.revision,
+       p.approval_fingerprint, p.approved_at, p.approved_by, p.rejection_reason, p.duplicate_of,
+       g.title AS generated_title, g.bullets AS generated_bullets, g.input_fingerprint,
+       g.description AS generated_description, g.version AS content_version,
+       g.status AS content_status
 FROM products p
 LEFT JOIN generated_content g ON g.product_id = p.id AND g.is_current
 WHERE p.batch_id = %(batch_id)s AND p.owner_user_id = %(owner)s

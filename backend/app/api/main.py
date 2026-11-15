@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
+    approval,
     batches,
     enrichment,
     files,
@@ -61,4 +62,5 @@ app.include_router(products.router)
 app.include_router(review.router)
 app.include_router(enrichment.router)
 app.include_router(validation.router)
+app.include_router(approval.router)
 app.include_router(test_runs.router)

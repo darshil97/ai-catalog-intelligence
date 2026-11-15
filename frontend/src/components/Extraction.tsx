@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { useEffect, useState } from "react";
 
+import { ApprovalPanel } from "@/components/ApprovalPanel";
 import { ImageGrid } from "@/components/ImageGrid";
 import { NextStep } from "@/components/NextStep";
 import { ChecksPanel } from "@/components/ChecksPanel";
@@ -11,6 +12,7 @@ import { EnrichmentPanel } from "@/components/EnrichmentPanel";
 import { ReviewPanel } from "@/components/ReviewPanel";
 import { describeLocation, FLAG_TEXT } from "@/lib/location";
 import type {
+  BatchApproval,
   BatchEnrichment,
   BatchValidation,
   ReviewTaskList,
@@ -62,6 +64,10 @@ export function Extraction({
   const checks = useApiResource<BatchValidation>(
     `/batches/${batchId}/validation`,
   );
+  const approval = useApiResource<BatchApproval>(
+    `/batches/${batchId}/approval`,
+  );
+  const { reload: reloadApproval } = approval;
   const { reload: reloadReviews } = reviews;
   const { reload: reloadEnrichment } = enrichment;
   const { reload: reloadChecks } = checks;
@@ -69,7 +75,15 @@ export function Extraction({
     reloadReviews();
     reloadEnrichment();
     reloadChecks();
-  }, [tab, version, reloadReviews, reloadEnrichment, reloadChecks]);
+    reloadApproval();
+  }, [
+    tab,
+    version,
+    reloadReviews,
+    reloadEnrichment,
+    reloadChecks,
+    reloadApproval,
+  ]);
   const openReviews = reviews.data
     ? reviews.data.items.filter((task) => task.status === "open").length
     : null;
@@ -118,6 +132,7 @@ export function Extraction({
         openReviews={openReviews}
         enrichment={enrichment.data}
         validation={checks.data}
+        approval={approval.data}
         onTab={setTab}
         onChanged={() => setVersion((current) => current + 1)}
       />
@@ -140,6 +155,11 @@ export function Extraction({
 
       {tab === "products" && (
         <>
+          <ApprovalPanel
+            batchId={batchId}
+            approval={approval.data}
+            onChanged={() => setVersion((current) => current + 1)}
+          />
           <section className="section">
             <h2>Products</h2>
             <ProductSummaryText run={run} />

@@ -1,5 +1,6 @@
 """Rules about generated text (M7): it exists, is current, and fits the marketplace."""
 
+import hashlib
 from collections.abc import Iterable
 
 from app.validation.base import BatchContext, Finding, Row, register_rule
@@ -76,6 +77,43 @@ class Bullets:
                 )
 
 
+class EditedCopy:
+    """Copy a person wrote says nothing its values don't (M9, D40)."""
+
+    code = "edited_copy"
+    version = 1
+    description = "Copy written by hand says nothing the product's values don't."
+
+    def check(self, ctx: BatchContext, profile: Row, settings: Row) -> Iterable[Finding]:
+        from app.config import get_enrichment_config, get_normalization_config
+        from app.enrichment.grounding import Grounding
+
+        grounding: Grounding | None = None
+        for product in ctx.products:
+            row = product.row
+            if row.get("content_status") != "edited":
+                continue
+            grounding = grounding or Grounding(get_enrichment_config(), get_normalization_config())
+            texts = [row["generated_title"] or "", *_sentences(row["generated_description"]),
+                     *(row["generated_bullets"] or [])]  # fmt: skip
+            for problem in grounding.unsupported(texts, product.facts):
+                yield Finding(
+                    product_id=product.id,
+                    # Stable across processes, so a set-aside warning stays aside.
+                    subject=hashlib.sha256(problem.encode()).hexdigest()[:12],
+                    message=f"Your copy: {problem}",
+                    seen=problem,
+                    fix="copy",
+                )
+
+
+def _sentences(text: str | None) -> list[str]:
+    import re
+
+    return [part for part in re.split(r"(?<=[.!?])\s+", text or "") if part.strip()]
+
+
 register_rule(GeneratedText())
 register_rule(TitleLength())
 register_rule(Bullets())
+register_rule(EditedCopy())

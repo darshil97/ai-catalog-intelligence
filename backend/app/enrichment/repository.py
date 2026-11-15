@@ -53,6 +53,16 @@ class ProductFacts:
         return GENERATED
 
     @property
+    def edited(self) -> bool:
+        """Its current copy was written by a person (M9). Never replaced automatically."""
+        return self.product.get("content_status") == "edited"
+
+    @property
+    def rejected(self) -> bool:
+        """A person rejected it (M9): it gets no copy."""
+        return self.product.get("status") == "rejected"
+
+    @property
     def reasons(self) -> list[str]:
         """Why its copy is missing or needs rewriting, for people."""
         state = self.state
@@ -72,7 +82,7 @@ class ProductFacts:
 
     def needs_generation(self, max_versions: int) -> bool:
         """Whether generating now could change anything."""
-        if self.product["versions"] >= max_versions:
+        if self.rejected or self.product["versions"] >= max_versions:
             return False
         state = self.state
         if state == GENERATED:

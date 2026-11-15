@@ -32,6 +32,7 @@ class Finding:
         seen: What the rule looked at, so a set-aside warning returns if it changes.
         other_product_id: The other product of a duplicate pair.
         fix: Where to fix it: review, generate, photos, or None.
+        attribute: The attribute a person can edit to fix it (M9), if any.
     """
 
     product_id: UUID
@@ -40,6 +41,7 @@ class Finding:
     seen: str = ""
     other_product_id: UUID | None = None
     fix: str | None = None
+    attribute: str | None = None
 
 
 @dataclass(frozen=True)
@@ -72,6 +74,13 @@ class ProductData:
     photos: list[Row] = field(default_factory=list)
     open_reviews: list[str] = field(default_factory=list)
     text_state: str = "none"
+    # Its settled facts (M7), for checking copy a person wrote.
+    facts: tuple[Any, ...] = ()
+
+    @property
+    def rejected(self) -> bool:
+        """A person rejected it (M9)."""
+        return self.row.get("status") == "rejected"
 
     def value(self, code: str) -> Attribute | None:
         """A settled attribute, or None."""

@@ -281,6 +281,27 @@ class Grounding:
                 problems.append(f"{label} cites {fact.id} ({fact.name}) but doesn't use it.")
         return problems
 
+    # Copy a person wrote (M9) -------------------------------------------------------------
+
+    def unsupported(self, texts: list[str], facts: tuple[Fact, ...]) -> list[str]:
+        """What in a person's own copy no fact supports, checked against every fact.
+
+        Their text cites nothing, so only claims are checked: quantities, codes, specification
+        words, colours, materials and banned phrases. Nothing is refused; the caller warns.
+        """
+        ids = [fact.id for fact in facts]
+        by_id = {fact.id: fact for fact in facts}
+        found: list[str] = []
+        for index, text in enumerate(t for t in texts if t.strip()):
+            claim = Claim(text=text, facts=ids or ["F0"])
+            for problem in self._check_claim(f"Line {index + 1}", claim, "description", by_id):
+                if "but doesn't use it" in problem or "title only" in problem:
+                    continue
+                if "aren't facts given" in problem:
+                    continue
+                found.append(problem.replace(" which no fact it cites ", " which no value "))
+        return found
+
     # The whole reply ----------------------------------------------------------------------
 
     def check(self, reply: EnrichmentReply, facts: tuple[Fact, ...]) -> Checked:

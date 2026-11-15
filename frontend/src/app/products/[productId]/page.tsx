@@ -6,6 +6,14 @@ import { useState } from "react";
 
 import { RequireActive } from "@/components/Account";
 import { checkSummary } from "@/components/ChecksPanel";
+import { ConfirmButton } from "@/components/ConfirmButton";
+import {
+  ApprovalBar,
+  CopyEditor,
+  DuplicateActions,
+  HistorySection,
+  ValueEditor,
+} from "@/components/ProductReview";
 import { ENRICHMENT_STATE_TEXT } from "@/components/EnrichmentPanel";
 import { ApiError, api, jsonBody } from "@/lib/api";
 import { describeLocation, FLAG_TEXT, VALUE_FLAG_TEXT } from "@/lib/location";
@@ -35,6 +43,12 @@ export default function ProductPage() {
 function ProductView() {
   const { productId } = useParams<{ productId: string }>();
   const product = useApiResource<ProductDetail>(`/products/${productId}`);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
+  const reload = () => {
+    product.reload();
+    setVersion((current) => current + 1);
+  };
 
   if (!product.data) {
     const message =
@@ -51,6 +65,13 @@ function ProductView() {
   }
 
   const data = product.data;
+  const revision = data.approval?.revision ?? 0;
+  function edit(code: string) {
+    setEditing(code);
+    document
+      .getElementById(`value-${code}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
   return (
     <div className="stack">
       <nav className="crumbs" aria-label="Breadcrumb">
@@ -70,7 +91,13 @@ function ProductView() {
               ` · written in the file as “${data.supplier_sku}”`}
           </p>
         </div>
-        <span className="badge">{data.status}</span>
+        {data.approval && (
+          <ApprovalBar
+            productId={data.id}
+            approval={data.approval}
+            onChanged={reload}
+          />
+        )}
       </div>
       {data.identifier_flags.map((flag) => (
         <p key={flag} className="error">
@@ -85,7 +112,8 @@ function ProductView() {
               batchId={data.batch_id}
               productId={data.id}
               content={data.generated_content}
-              onChange={product.reload}
+              revision={revision}
+              onChange={reload}
             />
           )}
           <section className="section">
@@ -94,7 +122,14 @@ function ProductView() {
               Each value in standard units, shown only when every source agrees.
               Disagreements wait for you in the batch&apos;s review list.
             </p>
-            <CatalogTable values={data.catalog_values} />
+            <CatalogTable
+              productId={data.id}
+              values={data.catalog_values}
+              revision={revision}
+              editing={editing}
+              onEdit={setEditing}
+              onSaved={reload}
+            />
           </section>
           <section className="section">
             <h2>What the files say</h2>
@@ -115,7 +150,9 @@ function ProductView() {
               batchId={data.batch_id}
               productId={data.id}
               checks={data.validation}
-              onChange={product.reload}
+              revision={revision}
+              onEdit={edit}
+              onChange={reload}
             />
           )}
           <section className="section">
@@ -146,6 +183,7 @@ function ProductView() {
               </ul>
             )}
           </section>
+          <HistorySection productId={data.id} version={version} />
         </div>
       </div>
     </div>
@@ -244,9 +282,29 @@ function CategoryLine({ category }: { category: ProductCategory | null }) {
   );
 }
 
-function CatalogTable({ values }: { values: CatalogValue[] }) {
-  const shown = values.filter((value) => value.state !== "missing");
-  const missing = values.filter((value) => value.state === "missing");
+function CatalogTable({
+  productId,
+  values,
+  revision,
+  editing,
+  onEdit,
+  onSaved,
+}: {
+  productId: string;
+  values: CatalogValue[];
+  revision: number;
+  editing: string | null;
+  onEdit: (code: string | null) => void;
+  onSaved: () => void;
+}) {
+  // Missing values come last, so they can be filled in too.
+  const shown = [
+    ...values.filter((value) => value.state !== "missing"),
+    ...values.filter(
+      (value) => value.state === "missing" && value.code !== "sku",
+    ),
+  ];
+  const missing: CatalogValue[] = [];
   return (
     <>
       <div className="table-wrap">
@@ -256,11 +314,14 @@ function CatalogTable({ values }: { values: CatalogValue[] }) {
               <th scope="col">Attribute</th>
               <th scope="col">Value</th>
               <th scope="col">From the sources</th>
+              <th scope="col">
+                <span className="visually-hidden">Edit</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {shown.map((value) => (
-              <tr key={value.code}>
+              <tr key={value.code} id={`value-${value.code}`}>
                 <td>
                   {value.name}{" "}
                   <span
@@ -285,6 +346,30 @@ function CatalogTable({ values }: { values: CatalogValue[] }) {
                       </li>
                     ))}
                   </ul>
+                  {editing === value.code && (
+                    <ValueEditor
+                      productId={productId}
+                      code={value.code}
+                      name={value.name}
+                      current={value.shown}
+                      revision={revision}
+                      onDone={(saved) => {
+                        onEdit(null);
+                        if (saved) onSaved();
+                      }}
+                    />
+                  )}
+                </td>
+                <td>
+                  {value.code !== "sku" && editing !== value.code && (
+                    <button
+                      type="button"
+                      className="button link"
+                      onClick={() => onEdit(value.code)}
+                    >
+                      {value.shown ? "Edit" : "Add"}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -304,13 +389,16 @@ function GeneratedSection({
   batchId,
   productId,
   content,
+  revision,
   onChange,
 }: {
   batchId: string;
   productId: string;
   content: GeneratedContent;
+  revision: number;
   onChange: () => void;
 }) {
+  const [editingCopy, setEditingCopy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -362,7 +450,34 @@ function GeneratedSection({
           </ul>
         </div>
       )}
-      {content.version !== null && title && (
+      {editingCopy && (
+        <CopyEditor
+          productId={productId}
+          content={content}
+          revision={revision}
+          onDone={(saved) => {
+            setEditingCopy(false);
+            if (saved) onChange();
+          }}
+        />
+      )}
+      {!editingCopy && content.edited && content.title && (
+        <div className="stack">
+          <p className="claim">
+            <strong>{content.title}</strong>
+          </p>
+          {content.description && (
+            <p className="claim">{content.description}</p>
+          )}
+          <ul className="claims">
+            {content.bullets.map((bullet) => (
+              <li key={bullet}>{bullet}</li>
+            ))}
+          </ul>
+          <p className="muted">Version {content.version} · written by you</p>
+        </div>
+      )}
+      {!editingCopy && !content.edited && content.version !== null && title && (
         <div className="stack">
           <ClaimLine claim={title} strong />
           {claims("description").map((claim) => (
@@ -383,19 +498,37 @@ function GeneratedSection({
           </p>
         </div>
       )}
-      {content.can_generate && (
+      {!editingCopy && (
         <div className="actions">
+          {content.can_generate && !content.edited && (
+            <button
+              type="button"
+              className="button"
+              disabled={busy}
+              onClick={regenerate}
+            >
+              {busy
+                ? "Starting…"
+                : content.version === null
+                  ? "Generate"
+                  : "Regenerate"}
+            </button>
+          )}
+          {content.can_generate && content.edited && (
+            <ConfirmButton
+              className="button"
+              label="Regenerate"
+              question="This replaces the copy you wrote. Regenerate?"
+              confirmLabel="Replace my copy"
+              onConfirm={regenerate}
+            />
+          )}
           <button
             type="button"
             className="button"
-            disabled={busy}
-            onClick={regenerate}
+            onClick={() => setEditingCopy(true)}
           >
-            {busy
-              ? "Starting…"
-              : content.version === null
-                ? "Generate"
-                : "Regenerate"}
+            {content.version === null ? "Write it myself" : "Edit"}
           </button>
         </div>
       )}
@@ -455,6 +588,7 @@ const SEVERITY_TEXT: Record<ValidationIssue["severity"], string> = {
 };
 
 const FIX_TEXT: Record<NonNullable<ValidationIssue["fix"]>, string> = {
+  copy: "Edit the copy",
   review: "Fix in the batch's review list",
   generate: "Generate text on the batch page",
   photos: "Confirm a photo on the batch page",
@@ -464,11 +598,15 @@ function ChecksSection({
   batchId,
   productId,
   checks,
+  revision,
+  onEdit,
   onChange,
 }: {
   batchId: string;
   productId: string;
   checks: ProductValidation;
+  revision: number;
+  onEdit: (code: string) => void;
   onChange: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -524,11 +662,29 @@ function ChecksSection({
                   {" · "}
                 </>
               )}
-              {issue.fix && !issue.set_aside && (
+              {issue.attribute && !issue.set_aside && (
+                <button
+                  type="button"
+                  className="button link"
+                  onClick={() => onEdit(issue.attribute as string)}
+                >
+                  Edit {issue.attribute.replace(/_/g, " ")}
+                </button>
+              )}
+              {issue.attribute && issue.fix && !issue.set_aside && " · "}
+              {issue.fix && issue.fix !== "copy" && !issue.set_aside && (
                 <Link href={`/batches/${batchId}`}>{FIX_TEXT[issue.fix]}</Link>
               )}
               {issue.set_aside && `Set aside: ${issue.set_aside.reason}`}
             </span>
+            {!issue.set_aside && (
+              <DuplicateActions
+                productId={productId}
+                issue={issue}
+                revision={revision}
+                onChanged={onChange}
+              />
+            )}
             {issue.severity === "warning" && (
               <span className="actions">
                 {issue.set_aside ? (

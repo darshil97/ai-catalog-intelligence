@@ -27,6 +27,7 @@ def list_products(profile: Profile, batch_id: UUID) -> dict[str, Any]:
 
 def get_product(profile: Profile, product_id: UUID) -> dict[str, Any]:
     """Return a product with its observations and accepted images, or 404."""
+    from app.api.services.approval import product_approval
     from app.api.services.enrichment import product_content
     from app.api.services.review import thumbnail_url
     from app.api.services.validation import product_validation
@@ -42,6 +43,9 @@ def get_product(profile: Profile, product_id: UUID) -> dict[str, Any]:
             category = products.category(conn, profile.user_id, product_id)
             generated = product_content(conn, profile, product)
             checks = product_validation(conn, profile.user_id, product_id, product["batch_id"])
+            approval_state = product_approval(
+                conn, profile.user_id, product_id, product["batch_id"]
+            )
     except products.ProductNotFoundError:
         not_found()
     product["catalog_values"] = [
@@ -59,6 +63,7 @@ def get_product(profile: Profile, product_id: UUID) -> dict[str, Any]:
     product["category"] = _category(category)
     product["generated_content"] = generated
     product["validation"] = checks
+    product["approval"] = approval_state
     product["images"] = [
         {
             "image_id": row["image_id"],

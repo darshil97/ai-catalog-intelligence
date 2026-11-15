@@ -25,7 +25,8 @@ def _pairs(
 ) -> Iterator[tuple[ProductData, ProductData, str]]:
     """Each pair of products sharing a key, with the key."""
     by_key: dict[str, list[ProductData]] = defaultdict(list)
-    for product in ctx.products:
+    # A product rejected (for example as the other one's duplicate) is no longer compared.
+    for product in (p for p in ctx.products if not p.rejected):
         for key in keys(product):
             by_key[key].append(product)
     seen: set[frozenset[UUID]] = set()
@@ -40,7 +41,9 @@ def _pairs(
             yield a, b, key
 
 
-def _both(a: ProductData, b: ProductData, message: str, seen: str) -> Iterator[Finding]:
+def _both(
+    a: ProductData, b: ProductData, message: str, seen: str, attribute: str | None = None
+) -> Iterator[Finding]:
     for this, other in ((a, b), (b, a)):
         yield Finding(
             product_id=this.id,
@@ -48,6 +51,7 @@ def _both(a: ProductData, b: ProductData, message: str, seen: str) -> Iterator[F
             other_product_id=other.id,
             message=message.format(other=other.key),
             seen=seen,
+            attribute=attribute,
         )
 
 
@@ -73,7 +77,7 @@ class DuplicateGtin:
             return found
 
         for a, b, key in _pairs(ctx, keys, skip_variants=False):
-            yield from _both(a, b, f"{{other}} has the same barcode, {key}.", key)
+            yield from _both(a, b, f"{{other}} has the same barcode, {key}.", key, "gtin")
 
 
 class DuplicateModelNumber:
@@ -89,7 +93,7 @@ class DuplicateModelNumber:
             return {value} if value else set()
 
         for a, b, key in _pairs(ctx, keys, skip_variants=True):
-            yield from _both(a, b, "{other} has the same model number.", key)
+            yield from _both(a, b, "{other} has the same model number.", key, "model_number")
 
 
 class DuplicateName:

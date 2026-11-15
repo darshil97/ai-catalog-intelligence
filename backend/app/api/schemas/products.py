@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.api.schemas.approval import Approval
 from app.api.schemas.enrichment import GeneratedContent
 from app.api.schemas.validation import ProductValidation
 
@@ -91,6 +92,9 @@ class ProductDetail(Product):
     )
     validation: "ProductValidation | None" = Field(
         None, description="Its checks under the batch's marketplace profile."
+    )
+    approval: "Approval | None" = Field(
+        None, description="Whether it's approved, and what blocks approval."
     )
     images: list["ProductImage"] = Field(
         default_factory=list, description="Photos accepted as showing it, in file order."

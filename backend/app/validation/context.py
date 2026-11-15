@@ -79,6 +79,7 @@ def load_batch(conn: Connection[Any], owner: str, batch_id: UUID) -> BatchContex
                 photos=photos.get(product["id"], []),
                 open_reviews=reviews.get(product["id"], []),
                 text_state=_text_state(product, sheet.fingerprint),
+                facts=sheet.facts,
             )
         )
     return BatchContext(batch_id=batch_id, products=out, variant_pairs=pairs)

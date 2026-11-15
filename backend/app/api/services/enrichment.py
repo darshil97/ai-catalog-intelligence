@@ -63,7 +63,8 @@ def batch_enrichment(profile: Profile, batch_id: UUID) -> dict[str, Any]:
             "title": item.product["title"],
             "facts": len(item.sheet.facts),
             "left_out": len(item.sheet.left_out),
-            "can_generate": item.needs_generation(max_versions),
+            "can_generate": item.needs_generation(max_versions) and not item.edited,
+            "edited": item.edited,
             "open_reviews": item.open_reviews,
             "reasons": item.reasons,
         }
@@ -107,7 +108,10 @@ def start(profile: Profile, batch_id: UUID, product_ids: list[UUID] | None) -> d
             chosen = [
                 item.product["id"]
                 for item in found
-                if item.product["id"] in wanted and item.needs_generation(max_versions)
+                if item.product["id"] in wanted
+                and item.needs_generation(max_versions)
+                # Copy a person wrote is replaced only when that product is asked for by name.
+                and (product_ids or not item.edited)
             ]
             if not chosen:
                 raise http_error(
@@ -174,6 +178,7 @@ def product_content(conn: Any, profile: Profile, product: dict[str, Any]) -> dic
             for x in (item.sheet.left_out if item else ())
         ],
         "can_generate": item.needs_generation(max_versions) if item else False,
+        "edited": item.edited if item else False,
         "open_reviews": item.open_reviews if item else 0,
         "reasons": item.reasons if item else [],
     }
@@ -210,7 +215,11 @@ def start_after_review(profile: Profile, batch_id: UUID) -> str:
             found = repository.product_facts(conn, profile.user_id, batch_id)
             if any(item.open_reviews for item in found):
                 return "not_needed"
-            chosen = [item.product["id"] for item in found if item.needs_generation(max_versions)]
+            chosen = [
+                item.product["id"]
+                for item in found
+                if item.needs_generation(max_versions) and not item.edited
+            ]
             if not chosen:
                 return "not_needed"
             if llm_budget_reached(conn):

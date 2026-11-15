@@ -368,6 +368,7 @@ validation:
     generated_text: warning
     title_length: error
     bullets: warning
+    edited_copy: warning
     photo: warning
     open_review: warning
     duplicate_gtin: error

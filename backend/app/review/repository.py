@@ -120,6 +120,8 @@ def decide(
     conn.execute(query("matching", "resolve_task"), {"task_id": task_id})
     conn.execute(query("matching", "clear_product_images"), {"batch_id": task["batch_id"]})
     conn.execute(query("matching", "rebuild_product_images"), {"batch_id": task["batch_id"]})
+    if decision == DECISION_ACCEPT and product_id is not None:
+        conn.execute(query("approval", "bump_revision"), {"product_id": product_id})
     return {
         "batch_id": task["batch_id"],
         "image_id": task["image_id"],
@@ -318,6 +320,7 @@ def decide_attribute(
         {"state": "reviewer_set", "selected_value_id": str(selected or ""), "value": shown},
     )
     conn.execute(query("matching", "resolve_task"), {"task_id": task_id})
+    conn.execute(query("approval", "bump_revision"), {"product_id": task["product_id"]})
     return {"product_id": task["product_id"], "shown": shown, "batch_id": task["batch_id"]}
 
 
@@ -362,6 +365,7 @@ def decide_category(conn: Connection[Any], owner: str, task_id: UUID, category_i
         {"category_id": str(category_id), "state": "assigned", "name": chosen["name"]},
     )
     conn.execute(query("matching", "resolve_task"), {"task_id": task_id})
+    conn.execute(query("approval", "bump_revision"), {"product_id": task["product_id"]})
     return {
         "product_id": task["product_id"],
         "shown": chosen["name"],
