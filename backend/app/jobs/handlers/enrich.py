@@ -1,12 +1,15 @@
 """Enrichment jobs (M7, D37).
 
 enrich_plan     payload {"batch_id", "product_ids"}: one enrich_product chunk per listed
-    product (every product when the list is empty) whose text could change.
+    product whose text could change. Without "product_ids" it's the last stage of processing
+    (ingest or photo_values): every product, and only when enrichment.auto is on.
 enrich_product  payload {"batch_id", "product_id"}: write the product's title, description and
     bullets from its settled facts, check every claim, and store a new version.
 
-Reaching the monthly LLM spend cap pauses the run (QuotaBlockedError): nothing is lost, and a
-person resumes it later. A stored reply is reused before the cap is checked, so a resumed or
+Reaching the monthly LLM spend cap pauses a run someone started (QuotaBlockedError): nothing is
+lost, and a person resumes it later. During processing it doesn't pause, which would leave the
+batch processing for the rest of the month: the product says so, and can be generated later.
+A stored reply is reused before the cap is checked, so a resumed or
 retried job never pays twice. Every job can run again safely.
 """
 
@@ -44,8 +47,11 @@ class EnrichPlanHandler:
         """One chunk per product whose text is missing, failed or out of date."""
         job = context.job
         batch_id = UUID(job.payload["batch_id"])
+        auto = "product_ids" not in job.payload
         wanted = {UUID(p) for p in job.payload.get("product_ids") or []}
         settings = get_enrichment_config()
+        if auto and not settings["auto"]:
+            return JobOutcome()
         with get_pool().connection() as conn:
             found = repository.product_facts(conn, job.owner_user_id, batch_id)
         chosen = [
@@ -55,17 +61,22 @@ class EnrichPlanHandler:
             and item.needs_generation(settings["max_versions_per_product"])
         ]
         logger.info(
-            "Enrichment planned: batch_id=%s products=%d chosen=%d",
+            "Enrichment planned: batch_id=%s products=%d chosen=%d auto=%s",
             batch_id,
             len(found),
             len(chosen),
+            auto,
         )
         return JobOutcome(
             chunks=tuple(
                 ChunkSpec(
                     key=f"product-{product_id}",
                     job_type="enrich_product",
-                    payload={"batch_id": str(batch_id), "product_id": str(product_id)},
+                    payload={
+                        "batch_id": str(batch_id),
+                        "product_id": str(product_id),
+                        "auto": auto,
+                    },
                 )
                 for product_id in chosen
             )
@@ -161,6 +172,15 @@ class EnrichProductHandler:
                 to_record=lambda value: value[0].model_dump(),
             )
         except LlmBudgetError as exc:
+            if job.payload.get("auto"):
+                self._set_state(
+                    job,
+                    product_id,
+                    repository.FAILED,
+                    "Not written yet: this month's LLM budget is used up. Generate it once "
+                    "there's budget again.",
+                )
+                return JobOutcome()
             raise QuotaBlockedError(
                 SPEND_CAP, f"This month's LLM budget is used up: {exc}. Resume once it's raised."
             ) from exc

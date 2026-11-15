@@ -2,14 +2,18 @@
 
 import Link from "next/link";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ImageGrid } from "@/components/ImageGrid";
+import { NextStep } from "@/components/NextStep";
 import { ChecksPanel } from "@/components/ChecksPanel";
 import { EnrichmentPanel } from "@/components/EnrichmentPanel";
 import { ReviewPanel } from "@/components/ReviewPanel";
 import { describeLocation, FLAG_TEXT } from "@/lib/location";
 import type {
+  BatchEnrichment,
+  BatchValidation,
+  ReviewTaskList,
   BatchRun,
   DocumentFile,
   DocumentList,
@@ -48,6 +52,29 @@ export function Extraction({
   const products = useApiResource<ProductList>(`/batches/${batchId}/products`);
   const [version, setVersion] = useState(0);
   const [tab, setTab] = useState<Tab>("products");
+  // What the next-step card and the tab counts need. Reloaded after any change and tab switch.
+  const reviews = useApiResource<ReviewTaskList>(
+    `/batches/${batchId}/review-tasks`,
+  );
+  const enrichment = useApiResource<BatchEnrichment>(
+    `/batches/${batchId}/enrichment`,
+  );
+  const checks = useApiResource<BatchValidation>(
+    `/batches/${batchId}/validation`,
+  );
+  const { reload: reloadReviews } = reviews;
+  const { reload: reloadEnrichment } = enrichment;
+  const { reload: reloadChecks } = checks;
+  useEffect(() => {
+    reloadReviews();
+    reloadEnrichment();
+    reloadChecks();
+  }, [tab, version, reloadReviews, reloadEnrichment, reloadChecks]);
+  const openReviews = reviews.data
+    ? reviews.data.items.filter((task) => task.status === "open").length
+    : null;
+  const withErrors =
+    checks.data?.items.filter((item) => item.errors > 0).length ?? 0;
   const variants = useApiResource<VariantList>(`/batches/${batchId}/variants`);
   const sheets = useApiResource<SheetList>(`/batches/${batchId}/sheets`);
   const documents = useApiResource<DocumentList>(
@@ -78,8 +105,22 @@ export function Extraction({
     { id: "sources", label: "Sources" },
   ];
 
+  const counts: Partial<Record<Tab, number>> = {
+    review: openReviews ?? 0,
+    checks: withErrors,
+    sources: rowNotes.length,
+  };
+
   return (
     <>
+      <NextStep
+        batchId={batchId}
+        openReviews={openReviews}
+        enrichment={enrichment.data}
+        validation={checks.data}
+        onTab={setTab}
+        onChanged={() => setVersion((current) => current + 1)}
+      />
       <div className="tabs" role="tablist" aria-label="Batch results">
         {tabs.map((item) => (
           <button
@@ -90,8 +131,8 @@ export function Extraction({
             onClick={() => setTab(item.id)}
           >
             {item.label}
-            {item.id === "sources" && rowNotes.length > 0 && (
-              <span className="count">{rowNotes.length}</span>
+            {(counts[item.id] ?? 0) > 0 && (
+              <span className="count">{counts[item.id]}</span>
             )}
           </button>
         ))}

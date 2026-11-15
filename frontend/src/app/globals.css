@@ -1367,3 +1367,74 @@ a.tile:hover {
     display: none;
   }
 }
+
+/* The batch's next step: one highlighted thing to do. */
+.next-step {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border: 1.5px solid var(--accent);
+  border-left-width: 6px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.next-step > div {
+  flex: 1 1 22rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.next-step .eyebrow {
+  margin: 0;
+}
+
+.next-step h2 {
+  font-size: 1.35rem;
+}
+
+.next-step.done {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.next-step.done .eyebrow {
+  color: var(--ok);
+}
+
+/* A section that folds away, such as a processed batch's files. */
+details.section > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-head);
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+details.section > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.section > summary::after {
+  content: "Show";
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+details.section[open] > summary::after {
+  content: "Hide";
+}
+
+details.section:not([open]) {
+  gap: 0;
+}

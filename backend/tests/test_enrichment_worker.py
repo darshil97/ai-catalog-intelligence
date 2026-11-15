@@ -21,7 +21,7 @@ from app.jobs.errors import LeaseLostError
 from app.llm.backends.fake import FakeBackend
 from app.llm.base import LlmReply, LlmRequest
 from app.storage.backends.memory import MemoryObjectStore
-from conftest import Tokens, ensure_user
+from conftest import Tokens, auto_copy_on, ensure_user
 from pipeline import (
     claim,
     context_for,
@@ -504,3 +504,32 @@ def test_block_is_fenced_and_resume_needs_a_paused_run(
         queue.block(conn, job, "llm_spend_cap", "test")
     with get_pool().connection() as conn:
         assert queue.resume_run(conn, job.pipeline_run_id) is None  # running, not paused
+
+
+def test_copy_is_written_automatically_at_the_end_of_processing(
+    client: TestClient,
+    store: MemoryObjectStore,
+    alice: dict,
+    llm: FakeBackend,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    auto_copy_on(monkeypatch)
+    asked = _answer(llm, monkeypatch, grounded_reply)
+    # Two calls fit the cap; the third product finds it used up during processing.
+    get_config()["llm"]["monthly_spend_cap_usd"] = 0.00005
+    batch_id = _processed_batch(client, store, alice)
+    assert len(asked) == 2
+    # Processing finishes; nothing is left paused or blocked.
+    assert client.get(f"/batches/{batch_id}/run", headers=alice).json()["status"] == "succeeded"
+    state = _state(client, alice, batch_id)
+    assert state["run"] is None  # no separate enrich run was needed
+    items = _by_key(state)
+    assert [items[k]["state"] for k in ("AK-1001", "AK-1002")] == ["generated", "generated"]
+    waiting = items["AK-1003"]
+    assert waiting["state"] == "failed" and "budget is used up" in waiting["message"]
+    assert waiting["can_generate"] is True
+    with get_pool().connection() as conn:
+        blocked = conn.execute(
+            "SELECT count(*) AS n FROM jobs WHERE status = 'blocked_quota'"
+        ).fetchone()
+    assert blocked is not None and blocked["n"] == 0

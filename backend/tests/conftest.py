@@ -223,6 +223,28 @@ def categories_off(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(normalize, "get_normalization_config", without_categories)
 
 
+@pytest.fixture(autouse=True)
+def auto_copy_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Writing copy at the end of processing calls the LLM for every product, so tests run
+    without it. A test about it puts it back with `auto_copy_on`."""
+    from app.jobs.handlers import enrich
+
+    real = enrich.get_enrichment_config
+
+    def without_auto() -> dict[str, Any]:
+        return {**real(), "auto": False}
+
+    monkeypatch.setattr(enrich, "get_enrichment_config", without_auto)
+
+
+def auto_copy_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Write copy at the end of processing in this test, as configured."""
+    from app.config import get_enrichment_config
+    from app.jobs.handlers import enrich
+
+    monkeypatch.setattr(enrich, "get_enrichment_config", get_enrichment_config)
+
+
 def categories_on(monkeypatch: pytest.MonkeyPatch) -> None:
     """Choose categories in this test, as configured."""
     from app.config import get_normalization_config

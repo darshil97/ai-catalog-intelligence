@@ -767,6 +767,10 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 - Vague descriptive words such as "sleek" can't be proven harmless and are allowed; specification-style claims can't be stored without a source.
 - Unlike ingest's LLM steps, which skip at the cap (D33), enrichment pauses, because a skipped product has nothing useful to show.
 
+**Amended by the owner on 2026-11-15, after the first live use:**
+- **Copy is written automatically** (replacing choice 1's "on demand only"): `enrich` is the last stage of the `ingest` and `photo_values` pipelines, controlled by `enrichment.auto`. Generate stays for copy that's missing, failed or out of date. During processing, reaching the spend cap doesn't pause the run, which would leave the batch "processing" for the rest of the month. The product says the budget is used up and can be generated later. A run someone starts still pauses as before.
+- **Counts written as words:** the first live run refused every product, because the model wrote the pack quantity as "a single unit", "a pack of two" or "three bowls", and the check only accepted digits. A count word now uses a count fact. "Two" to "twelve", "pair" and "dozen" must match a cited fact, as digits must. "One" and "single" are never refused on their own, because they're ordinary words too.
+
 ## D38: Validation checked when read, with marketplace profiles
 
 **Status:** Approved by the owner on 2026-11-15 (M8), all nine decisions as recommended. The proposal is in [proposals/M8_CATALOG_VALIDATION.md](proposals/M8_CATALOG_VALIDATION.md).
