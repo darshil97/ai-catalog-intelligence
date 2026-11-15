@@ -53,81 +53,101 @@ function ProductView() {
   const data = product.data;
   return (
     <div className="stack">
-      <p>
-        <Link href={`/batches/${data.batch_id}`}>← Batch</Link>
-      </p>
-      <div className="title-row">
-        <h1>{data.product_key}</h1>
+      <nav className="crumbs" aria-label="Breadcrumb">
+        <Link href="/suppliers">Suppliers</Link>
+        <span aria-hidden="true">/</span>
+        <Link href={`/batches/${data.batch_id}`}>Batch</Link>
+        <span aria-hidden="true">/</span>
+        <span>{data.product_key}</span>
+      </nav>
+      <div className="page-head">
+        <div>
+          <h1>{data.product_key}</h1>
+          <p className="sub">
+            Product {data.source_order} in file order
+            {data.supplier_sku !== null &&
+              data.supplier_sku !== data.product_key &&
+              ` · written in the file as “${data.supplier_sku}”`}
+          </p>
+        </div>
         <span className="badge">{data.status}</span>
       </div>
-      <p className="muted">
-        Product {data.source_order} in file order.
-        {data.supplier_sku !== null &&
-          data.supplier_sku !== data.product_key &&
-          ` Written in the file as "${data.supplier_sku}".`}
-      </p>
       {data.identifier_flags.map((flag) => (
         <p key={flag} className="error">
           {FLAG_TEXT[flag] ?? flag}
         </p>
       ))}
       <CategoryLine category={data.category} />
-      {data.validation && (
-        <ChecksSection
-          batchId={data.batch_id}
-          productId={data.id}
-          checks={data.validation}
-          onChange={product.reload}
-        />
-      )}
-      <h2>Catalog values</h2>
-      <p className="muted">
-        Each value in standard units, shown only when every source agrees.
-        Disagreements wait for you in the batch&apos;s review list.
-      </p>
-      <CatalogTable values={data.catalog_values} />
-      {data.generated_content && (
-        <GeneratedSection
-          batchId={data.batch_id}
-          productId={data.id}
-          content={data.generated_content}
-          onChange={product.reload}
-        />
-      )}
-      {data.images.length > 0 && (
-        <>
-          <h2>Photos</h2>
-          <ul className="photo-strip">
-            {data.images.map((image) => (
-              <li key={image.image_id}>
-                {image.thumbnail_url ? (
-                  // Signed links to private storage: next/image can't optimise them.
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={image.thumbnail_url} alt={image.image_name} />
-                ) : (
-                  <span className="thumb-missing">No preview</span>
-                )}
-                <span className="muted">
-                  {image.image_name}
-                  {image.decision === "accepted"
-                    ? " · confirmed by you"
-                    : " · its code is on it"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      <h2>What the files say</h2>
-      <p className="muted">
-        Each value is exactly as written in the file. Where the files give more
-        than one value for an attribute, every one is listed and marked
-        &ldquo;differs&rdquo;; none is chosen here.
-      </p>
-      <ObservationTable
-        observations={data.observations}
-        differing={new Set(data.differing_attributes)}
-      />
+      <div className="grid-2">
+        <div className="stack">
+          {data.generated_content && (
+            <GeneratedSection
+              batchId={data.batch_id}
+              productId={data.id}
+              content={data.generated_content}
+              onChange={product.reload}
+            />
+          )}
+          <section className="section">
+            <h2>Catalog values</h2>
+            <p className="muted">
+              Each value in standard units, shown only when every source agrees.
+              Disagreements wait for you in the batch&apos;s review list.
+            </p>
+            <CatalogTable values={data.catalog_values} />
+          </section>
+          <section className="section">
+            <h2>What the files say</h2>
+            <p className="muted">
+              Each value exactly as written in the file. Where the files give
+              more than one value for an attribute, every one is listed and
+              marked &ldquo;differs&rdquo;; none is chosen here.
+            </p>
+            <ObservationTable
+              observations={data.observations}
+              differing={new Set(data.differing_attributes)}
+            />
+          </section>
+        </div>
+        <div className="stack">
+          {data.validation && (
+            <ChecksSection
+              batchId={data.batch_id}
+              productId={data.id}
+              checks={data.validation}
+              onChange={product.reload}
+            />
+          )}
+          <section className="section">
+            <h2>Photos</h2>
+            {data.images.length === 0 ? (
+              <p className="muted">
+                No photo is confirmed for this product yet.
+              </p>
+            ) : (
+              <ul className="photo-strip">
+                {data.images.map((image) => (
+                  <li key={image.image_id}>
+                    {image.thumbnail_url ? (
+                      // Signed links to private storage: next/image can't optimise them.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={image.thumbnail_url} alt={image.image_name} />
+                    ) : (
+                      <span className="thumb-missing">No preview</span>
+                    )}
+                    <span className="muted">
+                      {image.image_name}
+                      {image.decision === "accepted"
+                        ? " · confirmed by you"
+                        : " · its code is on it"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
     </div>
   );
 }
@@ -320,7 +340,7 @@ function GeneratedSection({
 
   const warn = content.state === "failed" || content.state === "out_of_date";
   return (
-    <section className="stack">
+    <section className="section">
       <div className="title-row">
         <h2>Generated content</h2>
         <span className={`badge${warn ? " warning" : ""}`}>
@@ -459,7 +479,7 @@ function ChecksSection({
 
   const base = `/products/${productId}/validation/set-aside`;
   return (
-    <section className="stack">
+    <section className="section">
       <div className="title-row">
         <h2>Checks for {checks.profile_name}</h2>
         <span className={`badge${checks.errors ? " warning" : ""}`}>

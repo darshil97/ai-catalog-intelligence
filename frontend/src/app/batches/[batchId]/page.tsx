@@ -45,7 +45,6 @@ function BatchDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const status = batch.data?.status;
   const running = run.data ? ACTIVE_RUN.has(run.data.status) : false;
   const { reload: reloadBatch } = batch;
   const { reload: reloadFiles } = files;
@@ -155,52 +154,71 @@ function BatchDetail() {
 
   return (
     <div className="stack">
-      <p>
+      <nav className="crumbs" aria-label="Breadcrumb">
+        <Link href="/suppliers">Suppliers</Link>
+        <span aria-hidden="true">/</span>
         <Link href={`/suppliers/${batch.data.supplier_id}`}>
-          ← {batch.data.supplier_name ?? "Supplier"}
+          {batch.data.supplier_name ?? "Supplier"}
         </Link>
-      </p>
-      <div className="title-row">
-        <h1>{batch.data.name}</h1>
-        <span className="badge">{status}</span>
+      </nav>
+      <div className="page-head">
+        <div>
+          <h1>{batch.data.name}</h1>
+          <p className="sub">
+            {BATCH_TEXT[batch.data.status] ?? batch.data.status} · Created{" "}
+            {new Date(batch.data.created_at).toLocaleDateString()} · Deleted on{" "}
+            {new Date(batch.data.expires_at).toLocaleDateString()}
+          </p>
+        </div>
+        <span className={`badge ${BATCH_BADGE[batch.data.status] ?? ""}`}>
+          {BATCH_TEXT[batch.data.status] ?? batch.data.status}
+        </span>
       </div>
+      <Stepper status={batch.data.status} hasFiles={uploadedCount > 0} />
       {actionError && (
         <p className="error" role="alert">
           {actionError}
         </p>
       )}
 
-      {editable && (
-        <DropZone disabled={uploading || submitting} onFiles={addFiles} />
-      )}
-      {uploads.length > 0 && <UploadList uploads={uploads} />}
-
-      <h2>Files</h2>
-      <FileList
-        files={files.data?.items ?? []}
-        editable={editable && !uploading}
-        onRemove={removeFile}
-      />
-
-      {editable && (
-        <div className="stack">
-          <ConfirmButton
-            className="button primary"
-            disabled={uploading || submitting || uploadedCount === 0}
-            label={
-              submitting
-                ? "Starting…"
-                : batch.data.status === "failed"
-                  ? "Try processing again"
-                  : "Process batch"
-            }
-            question={processQuestion(me.data)}
-            confirmLabel="Process"
-            onConfirm={process}
-          />
-          <p className="muted">{usageText(me.data)}</p>
+      <section className="section">
+        <div className="card-head">
+          <h2>Files</h2>
+          <span className="muted">
+            {uploadedCount} {uploadedCount === 1 ? "file" : "files"}
+          </span>
         </div>
-      )}
+        {editable && (
+          <DropZone disabled={uploading || submitting} onFiles={addFiles} />
+        )}
+        {uploads.length > 0 && <UploadList uploads={uploads} />}
+
+        <FileList
+          files={files.data?.items ?? []}
+          editable={editable && !uploading}
+          onRemove={removeFile}
+        />
+
+        {editable && (
+          <div className="row">
+            <ConfirmButton
+              className="button primary"
+              disabled={uploading || submitting || uploadedCount === 0}
+              label={
+                submitting
+                  ? "Starting…"
+                  : batch.data.status === "failed"
+                    ? "Try processing again"
+                    : "Process batch"
+              }
+              question={processQuestion(me.data)}
+              confirmLabel="Process"
+              onConfirm={process}
+            />
+            <p className="muted">{usageText(me.data)}</p>
+          </div>
+        )}
+      </section>
 
       {run.data && <RunPanel run={run.data} />}
       {run.data?.status === "succeeded" && (
@@ -208,6 +226,55 @@ function BatchDetail() {
         <Extraction key={run.data.run_id} batchId={batchId} run={run.data} />
       )}
     </div>
+  );
+}
+
+const BATCH_TEXT: Record<string, string> = {
+  draft: "Draft",
+  queued: "Queued",
+  processing: "Processing",
+  completed: "Processed",
+  failed: "Failed",
+};
+const BATCH_BADGE: Record<string, string> = {
+  queued: "info",
+  processing: "info",
+  completed: "ok",
+  failed: "error",
+};
+
+/** Where the batch is: files, processing, then review and copy, then export (coming). */
+function Stepper({ status, hasFiles }: { status: string; hasFiles: boolean }) {
+  const processed = status === "completed";
+  const running = status === "queued" || status === "processing";
+  const steps: { label: string; state: "done" | "now" | "" }[] = [
+    {
+      label: "Upload files",
+      state: hasFiles || status !== "draft" ? "done" : "now",
+    },
+    {
+      label: "Process",
+      state: processed
+        ? "done"
+        : running || (hasFiles && !processed)
+          ? "now"
+          : "",
+    },
+    { label: "Review, write and check", state: processed ? "now" : "" },
+    { label: "Approve and export", state: "" },
+  ];
+  return (
+    <ol className="stepper" aria-label="Progress">
+      {steps.map((step) => (
+        <li
+          key={step.label}
+          className={step.state || undefined}
+          aria-current={step.state === "now" ? "step" : undefined}
+        >
+          {step.label}
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -374,7 +441,7 @@ function FileList({
 function RunPanel({ run }: { run: BatchRun }) {
   const done = run.finished_at !== null;
   return (
-    <section className="notice" aria-live="polite">
+    <section className="notice tinted" aria-live="polite">
       <h2>Processing</h2>
       {!done && (
         <p>

@@ -788,3 +788,13 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 - The API runs business rules, which PROJECT_CONTEXT had placed in the worker. Files and models still never reach the API.
 - Issues are always current, and no EC2 time is spent on them. Each read costs about five more queries.
 - If batches grow large, the same rules can run in a worker stage and store their results without changing.
+
+## D39: Bazaar · Indigo interface
+
+**Status:** Approved by the owner on 2026-11-15, after comparing seven options in `ui-options/` (kept out of Git).
+
+**Decision:** The interface uses the "Bazaar" design in its indigo palette: a neutral off-white base, an indigo accent (`#3f3cbb`) with rust labels, Fraunces headings and DM Sans text, rounded cards and pill navigation, with a dark mode that follows the system. The site gains a landing page (`/`) and a guide (`/how-it-works`); a batch's results sit in tabs (Products, Review, Copy, Checks, Photos, Sources); a product page has its copy and values on the left, and checks and photos on the right.
+
+**Alternatives considered:** A · Ledger, B · Studio and C · Bazaar (one layout in three colour schemes); D · Editorial (a list beside a detail panel); E · Board (product cards moving across stages, with a slide-over panel); Bazaar in Mehendi green, terracotta, rani pink, peacock and charcoal.
+
+**Consequences:** Styles live in one stylesheet (`frontend/src/app/globals.css`) with colour tokens, so a palette change is a token change. Fonts load through `next/font`. M9's review screens build on these components.

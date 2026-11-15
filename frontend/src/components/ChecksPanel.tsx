@@ -68,7 +68,7 @@ export function ChecksPanel({
   }
 
   return (
-    <section className="stack">
+    <section className="section">
       <h2>Checks</h2>
       <div className="actions">
         <label>

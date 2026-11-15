@@ -14,9 +14,9 @@ import { useApiResource } from "@/lib/useApiResource";
 export default function SupplierPage() {
   return (
     <main className="page">
-      <p>
-        <Link href="/suppliers">← All suppliers</Link>
-      </p>
+      <nav className="crumbs" aria-label="Breadcrumb">
+        <Link href="/suppliers">Suppliers</Link>
+      </nav>
       <RequireActive>
         <SupplierDetail />
       </RequireActive>
@@ -91,22 +91,29 @@ function SupplierDetail() {
           onCancel={() => setRenaming(false)}
         />
       ) : (
-        <div className="title-row">
-          <h1>{data.supplier_name}</h1>
-          <button
-            type="button"
-            className="button"
-            onClick={() => setRenaming(true)}
-          >
-            Rename
-          </button>
-          <ConfirmButton
-            className="button danger"
-            label="Delete"
-            question="Delete this supplier?"
-            confirmLabel="Delete"
-            onConfirm={remove}
-          />
+        <div className="page-head">
+          <div>
+            <h1>{data.supplier_name}</h1>
+            <p className="sub">
+              {data.items.length} {data.items.length === 1 ? "batch" : "batches"}
+            </p>
+          </div>
+          <div className="row">
+            <button
+              type="button"
+              className="button"
+              onClick={() => setRenaming(true)}
+            >
+              Rename
+            </button>
+            <ConfirmButton
+              className="button danger"
+              label="Delete"
+              question="Delete this supplier?"
+              confirmLabel="Delete"
+              onConfirm={remove}
+            />
+          </div>
         </div>
       )}
       {error && (
@@ -115,14 +122,21 @@ function SupplierDetail() {
         </p>
       )}
 
-      <h2>Batches</h2>
-      <NameForm
-        label="New batch name"
-        submitLabel="Add batch"
-        onSubmit={createBatch}
-      />
-      {data.items.length === 0 ? (
+      <div className="card">
+        <h2>Start a batch</h2>
         <p className="muted">
+          A batch holds one delivery of files, such as &ldquo;Spring price
+          list&rdquo;.
+        </p>
+        <NameForm
+          label="Batch name"
+          submitLabel="Add batch"
+          onSubmit={createBatch}
+        />
+      </div>
+      <h2>Batches</h2>
+      {data.items.length === 0 ? (
+        <p className="empty">
           No batches yet. A batch holds the files you upload together.
         </p>
       ) : (
@@ -135,6 +149,20 @@ function SupplierDetail() {
     </div>
   );
 }
+
+const BATCH_TEXT: Record<string, string> = {
+  draft: "Draft",
+  queued: "Queued",
+  processing: "Processing",
+  completed: "Processed",
+  failed: "Failed",
+};
+const BATCH_BADGE: Record<string, string> = {
+  queued: "info",
+  processing: "info",
+  completed: "ok",
+  failed: "error",
+};
 
 function BatchRow({ batch, onChange }: { batch: Batch; onChange: () => void }) {
   const [renaming, setRenaming] = useState(false);
@@ -176,8 +204,12 @@ function BatchRow({ batch, onChange }: { batch: Batch; onChange: () => void }) {
   return (
     <li>
       <span>
-        <Link href={`/batches/${batch.id}`}>{batch.name}</Link>{" "}
-        <span className="badge">{batch.status}</span>
+        <Link href={`/batches/${batch.id}`}>
+          <strong>{batch.name}</strong>
+        </Link>{" "}
+        <span className={`badge ${BATCH_BADGE[batch.status] ?? ""}`}>
+          {BATCH_TEXT[batch.status] ?? batch.status}
+        </span>
       </span>
       <span className="muted">
         Deleted on {new Date(batch.expires_at).toLocaleDateString()}

@@ -10,7 +10,7 @@
 - **Image association and review** (`image_match_candidates`, `product_images`, `review_tasks`, `review_events`, image match counts on `pipeline_runs`): migration `0008` (M5B), applied to `production` and `test`. `dev` is still at `0005`.
 - **Normalization** (`normalized_values`, `product_attributes`, `variant_candidates`, seeded `categories`, category columns on `products`, two more review kinds): migration `0009` (M6), applied to `production` and `test`. `dev` is still at `0005`.
 - **Enrichment** (`generated_content`, enrichment columns on `products`, `paused` runs with `pause_reason`): migration `0010` (M7), applied to `production` (by CI) and `test`. `dev` is still at `0005`.
-- **Validation** (`validation_overrides`, `batches.target_marketplace`): migration `0011` (M8), applied to `test` only so far.
+- **Validation** (`validation_overrides`, `batches.target_marketplace`): migration `0011` (M8), applied to `production` (by CI) and `test`. `dev` is still at `0005`.
 
 This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
