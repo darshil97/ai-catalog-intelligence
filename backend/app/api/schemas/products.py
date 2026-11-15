@@ -77,6 +77,12 @@ class ProductDetail(Product):
     observations: list[Observation] = Field(
         ..., description="Values grouped by attribute, then in file order."
     )
+    catalog_values: list["CatalogValue"] = Field(
+        default_factory=list,
+        description="Every attribute: its state, the value it shows, and the standard values "
+        "behind it.",
+    )
+    category: "ProductCategory | None" = Field(None, description="Its category.")
     images: list["ProductImage"] = Field(
         default_factory=list, description="Photos accepted as showing it, in file order."
     )
@@ -226,6 +232,97 @@ class ProductImage(BaseModel):
     thumbnail_url: str | None = Field(None, description="A short-lived link to a small JPEG.")
     decision: str = Field(..., description="auto_accepted or accepted (by a person).")
     decided_by: str = Field(..., description="'system', or the person who accepted it.")
+
+
+class StandardValue(BaseModel):
+    """One source's value in standard form."""
+
+    id: UUID = Field(..., description="Standard value ID, for choosing it in a conflict.")
+    display: str = Field(..., description='The value as shown, such as "1.5 L".')
+    unit: str | None = Field(None, description="Standard unit (g, ml, mm) or currency code.")
+    flags: list[str] = Field(
+        ...,
+        description="How it was read, and why it can't be relied on if so: unit_missing, "
+        "range, approximate, two_values, wrong_unit, not_a_number, currency_unknown, "
+        "not_a_whole_number (blocking); currency_assumed, decimal_comma, split_from_size, "
+        "fluid_ounce_assumed, unit_from_header.",
+    )
+    raw_value: str = Field(..., description="The value exactly as the source gave it.")
+    source_file_name: str = Field(..., description="The file it came from.")
+    location: dict[str, Any] = Field(..., description="Where in the file.")
+    rule_version: str = Field(..., description="The rules that made it, such as units@1.")
+
+
+class CatalogValue(BaseModel):
+    """What a product shows for one attribute."""
+
+    code: str = Field(..., description="Attribute code.")
+    name: str = Field(..., description="Attribute name.")
+    state: str = Field(
+        ...,
+        description="verified (sources agree), conflict (they don't; a person decides), "
+        "unclear (none can be relied on), missing, or reviewer_set (a person decided).",
+    )
+    shown: str | None = Field(None, description="The value shown, if any.")
+    decided_by: str | None = Field(None, description="'system', or the person who decided.")
+    values: list[StandardValue] = Field(..., description="Every source's standard value.")
+
+
+class CategoryRef(BaseModel):
+    """A category."""
+
+    id: UUID = Field(..., description="Category ID.")
+    code: str = Field(..., description="Category code.")
+    name: str = Field(..., description="Category name.")
+
+
+class ProductCategory(BaseModel):
+    """A product's category, or what was suggested."""
+
+    state: str = Field(..., description="none, assigned, or needs_review.")
+    source: str | None = Field(None, description="llm or person.")
+    confidence: float | None = Field(None, description="How sure the LLM was.")
+    reason: str | None = Field(None, description="Why, in a few words.")
+    category: CategoryRef | None = Field(None, description="The category, once assigned.")
+    suggested: CategoryRef | None = Field(None, description="The LLM's suggestion, if unsure.")
+
+
+class CategoryNode(BaseModel):
+    """One category of the tree."""
+
+    id: UUID = Field(..., description="Category ID.")
+    code: str = Field(..., description="Category code.")
+    name: str = Field(..., description="Category name.")
+    path: str = Field(..., description='Its full path, such as "Dining › Drinkware".')
+
+
+class CategoryList(BaseModel):
+    """The category tree, in order."""
+
+    items: list[CategoryNode] = Field(..., description="Categories, parents before children.")
+
+
+class VariantPair(BaseModel):
+    """Two products that may be variants of one. Flagged only, never merged."""
+
+    id: UUID = Field(..., description="Pair ID.")
+    status: str = Field(..., description="flagged, confirmed or dismissed.")
+    product_a_id: UUID = Field(..., description="One product.")
+    product_a_key: str = Field(..., description="Its key.")
+    product_b_id: UUID = Field(..., description="The other.")
+    product_b_key: str = Field(..., description="Its key.")
+    reasons: list[dict[str, Any]] = Field(
+        ...,
+        description="Why: rule (same_name_but_colour_or_size, same_base_code, "
+        "similar_photos) and text.",
+    )
+
+
+class VariantList(BaseModel):
+    """A batch's possible variants."""
+
+    batch_id: UUID = Field(..., description="The batch.")
+    items: list[VariantPair] = Field(..., description="Pairs, in file order.")
 
 
 ProductDetail.model_rebuild()

@@ -24,3 +24,20 @@ export const FLAG_TEXT: Record<string, string> = {
     "This number is longer than a spreadsheet can store, so its last digits were lost in the file.",
   invalid_gtin: "This isn't a valid barcode number.",
 };
+
+/** Explains why a standard value can't be relied on, or how it was read. */
+export const VALUE_FLAG_TEXT: Record<string, string> = {
+  unit_missing: "no unit",
+  range: "a range",
+  approximate: "approximate or a limit",
+  two_values: "two values",
+  wrong_unit: "wrong kind of unit",
+  not_a_number: "not a number",
+  currency_unknown: "currency unknown",
+  not_a_whole_number: "not a whole number",
+  currency_assumed: "currency assumed",
+  decimal_comma: "decimal comma",
+  split_from_size: "split from a combined size",
+  fluid_ounce_assumed: "ounces read as fluid ounces",
+  unit_from_header: "unit from the column heading",
+};

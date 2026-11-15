@@ -81,3 +81,41 @@ def list_documents(conn: Connection[Any], owner: str, batch_id: UUID, limit: int
         query("products", "list_documents"),
         {"owner": owner, "batch_id": batch_id, "limit": limit},
     ).fetchall()
+
+
+def catalog_values(
+    conn: Connection[Any], owner: str, product_id: UUID, rule_version: str
+) -> list[Row]:
+    """Return every attribute's state and shown value, with the standard values behind it."""
+    attributes = conn.execute(
+        query("normalization", "product_attributes"), {"owner": owner, "product_id": product_id}
+    ).fetchall()
+    values = conn.execute(
+        query("normalization", "product_value_list"),
+        {"owner": owner, "product_id": product_id, "rule_version": rule_version},
+    ).fetchall()
+    by_attribute: dict[UUID, list[Row]] = {}
+    for value in values:
+        by_attribute.setdefault(value["attribute_id"], []).append(value)
+    return [{**row, "values": by_attribute.get(row["attribute_id"], [])} for row in attributes]
+
+
+def category(conn: Connection[Any], owner: str, product_id: UUID) -> Row | None:
+    """Return a product's category, suggestion and state."""
+    row: Row | None = conn.execute(
+        query("normalization", "product_category"), {"owner": owner, "product_id": product_id}
+    ).fetchone()
+    return row
+
+
+def list_categories(conn: Connection[Any]) -> list[Row]:
+    """Return the category tree, in its order."""
+    return conn.execute(query("normalization", "categories")).fetchall()
+
+
+def list_variants(conn: Connection[Any], owner: str, batch_id: UUID, limit: int) -> list[Row]:
+    """Return a batch's possible variant pairs. Empty if the batch isn't the owner's."""
+    return conn.execute(
+        query("normalization", "list_variants"),
+        {"owner": owner, "batch_id": batch_id, "limit": limit},
+    ).fetchall()

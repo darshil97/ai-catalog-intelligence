@@ -32,11 +32,12 @@ def list_review_tasks(batch_id: UUID, profile: ActiveUser) -> dict[str, Any]:
 
 @router.post("/review-tasks/{task_id}/decision", response_model=DecisionResult)
 def decide(task_id: UUID, request: DecisionRequest, profile: ActiveUser) -> dict[str, Any]:
-    """Accept one product for the photo, or reject every candidate. Recorded for audit.
+    """Decide a task, recorded for audit.
 
-    Accepting starts reading the photo's values for the product.
+    Photos: accept one product, or reject every candidate (accepting reads the photo's values).
+    Conflicts: choose one source's value, or set your own. Categories: choose one.
     """
-    return review.decide(profile, task_id, request.decision, request.product_id)
+    return review.decide(profile, task_id, request)
 
 
 @router.post(

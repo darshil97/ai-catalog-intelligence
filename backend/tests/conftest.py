@@ -205,6 +205,32 @@ def llm() -> Iterator[FakeBackend]:
     fake.clear()
 
 
+@pytest.fixture(autouse=True)
+def categories_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Choosing categories calls the LLM for every product, so tests run without it.
+
+    A test about categories puts back the real settings with `categories_on`.
+    """
+    from app.jobs.handlers import normalize
+
+    real = normalize.get_normalization_config
+
+    def without_categories() -> dict[str, Any]:
+        settings = real()
+        settings["category"] = {**settings["category"], "enabled": False}
+        return settings
+
+    monkeypatch.setattr(normalize, "get_normalization_config", without_categories)
+
+
+def categories_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Choose categories in this test, as configured."""
+    from app.config import get_normalization_config
+    from app.jobs.handlers import normalize
+
+    monkeypatch.setattr(normalize, "get_normalization_config", get_normalization_config)
+
+
 @pytest.fixture
 def client() -> TestClient:
     """A client running the real app, so middleware and validators are exercised."""

@@ -173,3 +173,193 @@ def start_photo_values(
         for stage in get_pipeline_config(PHOTO_VALUES_PIPELINE)
     ]
     return queue.create_run(conn, PHOTO_VALUES_PIPELINE, stages, owner, request_id, settings)
+
+
+KIND_IMAGE_MATCH = "image_match"
+KIND_ATTRIBUTE_CONFLICT = "attribute_conflict"
+KIND_CATEGORY = "category"
+DECISION_CHOOSE = "choose"
+DECISION_SET = "set"
+
+
+class NotAChoiceError(Exception):
+    """The value or category chosen isn't one the task offers."""
+
+
+def task_kind(conn: Connection[Any], owner: str, task_id: UUID) -> str:
+    """Return a task's kind.
+
+    Raises:
+        TaskNotFoundError: if the owner has no such task.
+    """
+    row = conn.execute(
+        query("normalization", "lock_other_task"), {"task_id": task_id, "owner": owner}
+    ).fetchone()
+    if row is None:
+        raise TaskNotFoundError(str(task_id))
+    return str(row["kind"])
+
+
+def list_other_tasks(
+    conn: Connection[Any], owner: str, batch_id: UUID, limit: int, rule_version: str
+) -> list[Row]:
+    """Return a batch's conflict and category tasks, each with what can be chosen."""
+    tasks = conn.execute(
+        query("normalization", "list_other_tasks"),
+        {"owner": owner, "batch_id": batch_id, "limit": limit},
+    ).fetchall()
+    out = []
+    for task in tasks:
+        extra: Row = {"values": [], "category": None}
+        if task["kind"] == KIND_ATTRIBUTE_CONFLICT:
+            extra["values"] = [
+                value
+                for value in conn.execute(
+                    query("normalization", "product_value_list"),
+                    {
+                        "owner": owner,
+                        "product_id": task["product_id"],
+                        "rule_version": rule_version,
+                    },
+                ).fetchall()
+                if value["attribute_id"] == task["attribute_id"]
+            ]
+        else:
+            extra["category"] = conn.execute(
+                query("normalization", "product_category"),
+                {"owner": owner, "product_id": task["product_id"]},
+            ).fetchone()
+        out.append({**task, **extra})
+    return out
+
+
+def _lock_open(conn: Connection[Any], owner: str, task_id: UUID, kind: str) -> Row:
+    task: Row | None = conn.execute(
+        query("normalization", "lock_other_task"), {"task_id": task_id, "owner": owner}
+    ).fetchone()
+    if task is None or task["kind"] != kind:
+        raise TaskNotFoundError(str(task_id))
+    if task["status"] != "open":
+        raise TaskResolvedError(str(task_id))
+    return task
+
+
+def _record(
+    conn: Connection[Any], actor: str, batch_id: UUID, entity: str, entity_id: UUID,
+    before: Row, after: Row,
+) -> None:  # fmt: skip
+    conn.execute(
+        query("matching", "insert_event"),
+        {
+            "actor": actor,
+            "batch_id": batch_id,
+            "entity_type": entity,
+            "entity_id": entity_id,
+            "action": "decide",
+            "before": Jsonb(before),
+            "after": Jsonb(after),
+        },
+    )
+
+
+def decide_attribute(
+    conn: Connection[Any],
+    owner: str,
+    task_id: UUID,
+    decision: str,
+    value_id: UUID | None,
+    value_text: str | None,
+) -> Row:
+    """Settle a conflict: choose one source's value, or set your own.
+
+    Raises:
+        TaskNotFoundError: if the owner has no such conflict task.
+        TaskResolvedError: if it was already decided.
+        NotAChoiceError: if the value isn't one of this attribute's values.
+    """
+    task = _lock_open(conn, owner, task_id, KIND_ATTRIBUTE_CONFLICT)
+    current: Row | None = conn.execute(
+        query("normalization", "lock_product_attribute"),
+        {"product_id": task["product_id"], "attribute_id": task["attribute_id"]},
+    ).fetchone()
+    if current is None:
+        raise TaskNotFoundError(str(task_id))
+    selected, reviewer, shown = None, None, value_text
+    if decision == DECISION_CHOOSE:
+        chosen = conn.execute(
+            query("normalization", "value_for_attribute"),
+            {
+                "value_id": value_id,
+                "product_id": task["product_id"],
+                "attribute_id": task["attribute_id"],
+            },
+        ).fetchone()
+        if chosen is None:
+            raise NotAChoiceError(str(value_id))
+        selected, shown = chosen["id"], chosen["display"]
+    else:
+        reviewer = {"text": value_text}
+    conn.execute(
+        query("normalization", "set_attribute_by_person"),
+        {
+            "id": current["id"],
+            "selected_value_id": selected,
+            "reviewer_value": Jsonb(reviewer) if reviewer is not None else None,
+            "actor": owner,
+        },
+    )
+    _record(
+        conn,
+        owner,
+        task["batch_id"],
+        "product_attribute",
+        current["id"],
+        {"state": current["state"], "selected_value_id": str(current["selected_value_id"] or "")},
+        {"state": "reviewer_set", "selected_value_id": str(selected or ""), "value": shown},
+    )
+    conn.execute(query("matching", "resolve_task"), {"task_id": task_id})
+    return {"product_id": task["product_id"], "shown": shown}
+
+
+def decide_category(conn: Connection[Any], owner: str, task_id: UUID, category_id: UUID) -> Row:
+    """Set a product's category.
+
+    Raises:
+        TaskNotFoundError: if the owner has no such category task.
+        TaskResolvedError: if it was already decided.
+        NotAChoiceError: if the category doesn't exist or is the tree's root.
+    """
+    task = _lock_open(conn, owner, task_id, KIND_CATEGORY)
+    categories = {
+        row["id"]: row for row in conn.execute(query("normalization", "categories")).fetchall()
+    }
+    chosen = categories.get(category_id)
+    if chosen is None or chosen["parent_id"] is None and chosen["code"] != "other":
+        raise NotAChoiceError(str(category_id))
+    current = conn.execute(
+        query("normalization", "lock_product_category"), {"product_id": task["product_id"]}
+    ).fetchone()
+    assert current is not None  # noqa: S101
+    conn.execute(
+        query("normalization", "set_category"),
+        {
+            "product_id": task["product_id"],
+            "category_id": category_id,
+            "suggested_id": None,
+            "state": "assigned",
+            "source": "person",
+            "confidence": None,
+            "reason": None,
+        },
+    )
+    _record(
+        conn,
+        owner,
+        task["batch_id"],
+        "product_category",
+        task["product_id"],
+        {"category_id": str(current["category_id"] or ""), "state": current["category_state"]},
+        {"category_id": str(category_id), "state": "assigned", "name": chosen["name"]},
+    )
+    conn.execute(query("matching", "resolve_task"), {"task_id": task_id})
+    return {"product_id": task["product_id"], "shown": chosen["name"]}

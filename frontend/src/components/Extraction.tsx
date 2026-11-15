@@ -13,6 +13,7 @@ import type {
   DocumentList,
   ProductList,
   RunError,
+  VariantList,
   Sheet,
   SheetList,
 } from "@/lib/types";
@@ -42,6 +43,7 @@ export function Extraction({
 }) {
   const products = useApiResource<ProductList>(`/batches/${batchId}/products`);
   const [version, setVersion] = useState(0);
+  const variants = useApiResource<VariantList>(`/batches/${batchId}/variants`);
   const sheets = useApiResource<SheetList>(`/batches/${batchId}/sheets`);
   const documents = useApiResource<DocumentList>(
     `/batches/${batchId}/documents`,
@@ -145,6 +147,28 @@ export function Extraction({
         }}
       />
       <ImageGrid batchId={batchId} version={version} />
+
+      {(variants.data?.items.length ?? 0) > 0 && (
+        <section className="stack">
+          <h2>Possible variants</h2>
+          <p className="muted">
+            These look like versions of one product. They stay separate: nothing
+            is merged.
+          </p>
+          <ul className="list">
+            {(variants.data?.items ?? []).map((pair) => (
+              <li key={pair.id}>
+                <span>
+                  {pair.product_a_key} and {pair.product_b_key}
+                </span>
+                <span className="muted">
+                  {pair.reasons.map((reason) => reason.text).join(" ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {rowNotes.length > 0 && <RowNotes notes={rowNotes} />}
     </>

@@ -9,7 +9,12 @@ from app import catalog, review
 from app.api.services.common import database, http_error, not_found
 from app.auth import Profile
 from app.compute.starter import request_worker_start
-from app.config import get_catalog_config, get_images_config, get_processing_config
+from app.config import (
+    get_catalog_config,
+    get_images_config,
+    get_normalization_config,
+    get_processing_config,
+)
 from app.jobs.settings import get_queue_settings
 from app.storage import StorageError, get_object_store
 from app.utils.logger import get_logger
@@ -74,18 +79,21 @@ def list_matches(profile: Profile, batch_id: UUID) -> dict[str, Any]:
 
 
 def list_tasks(profile: Profile, batch_id: UUID) -> dict[str, Any]:
-    """Return a batch's review tasks, or 404."""
+    """Return a batch's review tasks of every kind, or 404."""
     limit = get_catalog_config()["max_list_items"]
+    version = get_normalization_config()["rule_version"]
     try:
         with database("list_review_tasks") as conn:
             catalog.get_batch(conn, profile.user_id, batch_id)
-            tasks = review.list_tasks(conn, profile.user_id, batch_id, limit)
+            images = review.list_tasks(conn, profile.user_id, batch_id, limit)
+            others = review.list_other_tasks(conn, profile.user_id, batch_id, limit, version)
             pending = review.pending_photo_values(conn, profile.user_id, batch_id)
     except catalog.NotFoundError:
         not_found()
-    items = [
+    items: list[dict[str, Any]] = [
         {
             "id": task["id"],
+            "kind": review.KIND_IMAGE_MATCH,
             "status": task["status"],
             "image_id": task["image_id"],
             "source_file_id": task["source_file_id"],
@@ -95,8 +103,29 @@ def list_tasks(profile: Profile, batch_id: UUID) -> dict[str, Any]:
             "created_at": task["created_at"],
             "resolved_at": task["resolved_at"],
         }
-        for task in tasks
+        for task in images
     ]
+    for task in others:
+        category = task["category"] or {}
+        items.append(
+            {
+                "id": task["id"],
+                "kind": task["kind"],
+                "status": task["status"],
+                "created_at": task["created_at"],
+                "resolved_at": task["resolved_at"],
+                "product_id": task["product_id"],
+                "product_key": task["product_key"],
+                "attribute_code": task["attribute_code"],
+                "attribute_name": task["attribute_name"],
+                "values": task["values"],
+                "suggested_category_id": category.get("suggested_id"),
+                "suggested_category_name": category.get("suggested_name"),
+                "category_reason": category.get("category_reason"),
+            }
+        )
+    # Open tasks first, keeping each kind's own order.
+    items.sort(key=lambda item: item["status"] != "open")
     return {"batch_id": batch_id, "pending_photo_values": pending, "items": items}
 
 
@@ -121,38 +150,62 @@ def _queue_photo_values(profile: Profile, batch_id: UUID) -> tuple[str, int]:
     return "queued", pending
 
 
-def decide(
-    profile: Profile, task_id: UUID, decision: str, product_id: UUID | None
-) -> dict[str, Any]:
-    """Record a decision, then start reading the accepted photo's values.
+def decide(profile: Profile, task_id: UUID, request: Any) -> dict[str, Any]:
+    """Record a decision on any kind of task. Accepting a photo starts reading its values.
 
     Raises:
-        HTTPException: 404, 409 (already decided), 422 (not a candidate), or 503.
+        HTTPException: 404, 409 (already decided), 422 (not a choice for this task), or 503.
     """
     try:
         with database("decide_review_task") as conn:
-            result = review.decide(conn, profile.user_id, task_id, decision, product_id)
+            kind = review.task_kind(conn, profile.user_id, task_id)
+            if kind == review.KIND_IMAGE_MATCH:
+                if request.decision not in (review.DECISION_ACCEPT, review.DECISION_REJECT):
+                    raise review.NotAChoiceError(request.decision)
+                result = review.decide(
+                    conn, profile.user_id, task_id, request.decision, request.product_id
+                )
+            elif kind == review.KIND_ATTRIBUTE_CONFLICT:
+                if request.decision not in (review.DECISION_CHOOSE, review.DECISION_SET):
+                    raise review.NotAChoiceError(request.decision)
+                if request.decision == review.DECISION_CHOOSE and request.value_id is None:
+                    raise review.NotAChoiceError("value_id")
+                result = review.decide_attribute(
+                    conn,
+                    profile.user_id,
+                    task_id,
+                    request.decision,
+                    request.value_id,
+                    (request.value or "").strip() or None,
+                )
+            else:
+                if request.decision != review.DECISION_CHOOSE or request.category_id is None:
+                    raise review.NotAChoiceError(request.decision)
+                result = review.decide_category(conn, profile.user_id, task_id, request.category_id)
     except review.TaskNotFoundError:
         not_found()
     except review.TaskResolvedError as exc:
-        raise http_error(409, "already_decided", "This photo has already been decided.") from exc
+        raise http_error(409, "already_decided", "This has already been decided.") from exc
     except review.NotACandidateError as exc:
         raise http_error(
             422, "not_a_candidate", "That product isn't one of this photo's candidates."
         ) from exc
+    except review.NotAChoiceError as exc:
+        raise http_error(422, "not_a_choice", "That isn't a choice this task offers.") from exc
     logger.info(
-        "Review decided: task_id=%s decision=%s product_id=%s owner=%s",
+        "Review decided: task_id=%s kind=%s decision=%s owner=%s",
         task_id,
-        decision,
-        product_id,
+        kind,
+        request.decision,
         profile.user_id,
     )
     status = "not_needed"
-    if result["accepted_product_id"] is not None:
+    if kind == review.KIND_IMAGE_MATCH and result.get("accepted_product_id") is not None:
         status, _ = _queue_photo_values(profile, result["batch_id"])
     return {
         "task_id": task_id,
-        "accepted_product_id": result["accepted_product_id"],
+        "accepted_product_id": result.get("accepted_product_id"),
+        "shown": result.get("shown"),
         "photo_values": status,
     }
 

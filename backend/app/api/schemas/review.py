@@ -53,18 +53,42 @@ class ImageMatchList(BaseModel):
     items: list[ImageMatch] = Field(..., description="Candidates.")
 
 
+class ConflictValue(BaseModel):
+    """A value a person can choose in a conflict."""
+
+    id: UUID = Field(..., description="Standard value ID, to choose it.")
+    display: str = Field(..., description="The value in standard form.")
+    raw_value: str = Field(..., description="Exactly as the source gave it.")
+    source_file_name: str = Field(..., description="The file it came from.")
+    location: dict[str, Any] = Field(..., description="Where in the file.")
+    flags: list[str] = Field(..., description="How it was read.")
+
+
 class ReviewTask(BaseModel):
-    """An image whose product a person needs to confirm."""
+    """Something a person needs to decide."""
 
     id: UUID = Field(..., description="Task ID.")
+    kind: str = Field(..., description="image_match, attribute_conflict or category.")
     status: str = Field(..., description="open or resolved.")
-    image_id: UUID = Field(..., description="The image.")
-    source_file_id: UUID = Field(..., description="Its file.")
-    image_name: str = Field(..., description="Its file name.")
-    thumbnail_url: str | None = Field(None, description="A short-lived link to a small JPEG.")
-    candidates: list[MatchCandidate] = Field(..., description="Products it might show, best first.")
     created_at: datetime = Field(..., description="When it was opened.")
     resolved_at: datetime | None = Field(None, description="When it was decided.")
+    image_id: UUID | None = Field(None, description="image_match: the image.")
+    source_file_id: UUID | None = Field(None, description="image_match: its file.")
+    image_name: str | None = Field(None, description="image_match: its file name.")
+    thumbnail_url: str | None = Field(None, description="image_match: a short-lived link.")
+    candidates: list[MatchCandidate] = Field(
+        default_factory=list, description="image_match: products it might show, best first."
+    )
+    product_id: UUID | None = Field(None, description="Conflicts and categories: the product.")
+    product_key: str | None = Field(None, description="Its key.")
+    attribute_code: str | None = Field(None, description="attribute_conflict: the attribute.")
+    attribute_name: str | None = Field(None, description="attribute_conflict: its name.")
+    values: list[ConflictValue] = Field(
+        default_factory=list, description="attribute_conflict: every source's value."
+    )
+    suggested_category_id: UUID | None = Field(None, description="category: the suggestion.")
+    suggested_category_name: str | None = Field(None, description="category: its name.")
+    category_reason: str | None = Field(None, description="category: why, in a few words.")
 
 
 class ReviewTaskList(BaseModel):
@@ -78,19 +102,30 @@ class ReviewTaskList(BaseModel):
 
 
 class DecisionRequest(BaseModel):
-    """A person's decision on a task."""
+    """A person's decision on a task. Which fields are needed depends on the task's kind."""
 
-    decision: Literal["accept", "reject"] = Field(
-        ..., description="accept one product, or reject every candidate."
+    decision: Literal["accept", "reject", "choose", "set"] = Field(
+        ...,
+        description="image_match: accept one product or reject every candidate. "
+        "attribute_conflict: choose one value, or set your own. category: choose one.",
     )
-    product_id: UUID | None = Field(None, description="The product to accept. Required to accept.")
+    product_id: UUID | None = Field(None, description="image_match accept: the product.")
+    value_id: UUID | None = Field(None, description="attribute_conflict choose: the value.")
+    value: str | None = Field(
+        None, min_length=1, max_length=500, description="attribute_conflict set: your value."
+    )
+    category_id: UUID | None = Field(None, description="category choose: the category.")
 
     @model_validator(mode="after")
-    def _product_for_accept(self) -> "DecisionRequest":
+    def _fields_for_decision(self) -> "DecisionRequest":
         if self.decision == "accept" and self.product_id is None:
             raise ValueError("product_id is required to accept")
         if self.decision == "reject" and self.product_id is not None:
             raise ValueError("product_id must be left out to reject")
+        if self.decision == "choose" and (self.value_id is None) == (self.category_id is None):
+            raise ValueError("choose needs exactly one of value_id or category_id")
+        if self.decision == "set" and not (self.value or "").strip():
+            raise ValueError("set needs a value")
         return self
 
 
@@ -99,6 +134,7 @@ class DecisionResult(BaseModel):
 
     task_id: UUID = Field(..., description="The task, now resolved.")
     accepted_product_id: UUID | None = Field(None, description="The product accepted, if any.")
+    shown: str | None = Field(None, description="Conflicts and categories: what it now shows.")
     photo_values: Literal["queued", "waiting", "not_needed"] = Field(
         ...,
         description="queued: values are being read from the photo. waiting: another run is "

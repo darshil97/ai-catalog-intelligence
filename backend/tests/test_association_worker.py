@@ -58,7 +58,9 @@ def _matches(client: TestClient, headers: dict, batch_id: str) -> dict[str, list
 def _tasks(client: TestClient, headers: dict, batch_id: str) -> dict[str, Any]:
     response = client.get(f"/batches/{batch_id}/review-tasks", headers=headers)
     assert response.status_code == 200, response.text
-    return dict(response.json())
+    body = dict(response.json())
+    body["items"] = [task for task in body["items"] if task["kind"] == "image_match"]
+    return body
 
 
 SHEET = samples.table_csv(
@@ -188,7 +190,7 @@ def test_photos_of_one_product_are_confirmed_by_a_person_and_their_values_read(
     assert response.status_code == 200, response.text
     assert response.json()["photo_values"] == "queued"
     ran = drain()
-    assert ran == ["photo_values_plan", "photo_value"]
+    assert ran == ["photo_values_plan", "photo_value", "normalize_batch"]
 
     product = client.get(f"/products/{candidate['product_id']}", headers=alice).json()
     weights = sorted(

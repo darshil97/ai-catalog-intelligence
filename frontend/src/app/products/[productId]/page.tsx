@@ -4,8 +4,17 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { RequireActive } from "@/components/Account";
-import { describeLocation, FLAG_TEXT } from "@/lib/location";
-import type { Observation, ProductDetail } from "@/lib/types";
+import {
+  describeLocation,
+  FLAG_TEXT,
+  VALUE_FLAG_TEXT,
+} from "@/lib/location";
+import type {
+  CatalogValue,
+  Observation,
+  ProductCategory,
+  ProductDetail,
+} from "@/lib/types";
 import { useApiResource } from "@/lib/useApiResource";
 
 export default function ProductPage() {
@@ -57,6 +66,13 @@ function ProductView() {
           {FLAG_TEXT[flag] ?? flag}
         </p>
       ))}
+      <CategoryLine category={data.category} />
+      <h2>Catalog values</h2>
+      <p className="muted">
+        Each value in standard units, shown only when every source agrees.
+        Disagreements wait for you in the batch&apos;s review list.
+      </p>
+      <CatalogTable values={data.catalog_values} />
       {data.images.length > 0 && (
         <>
           <h2>Photos</h2>
@@ -154,5 +170,91 @@ function ObservationTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+const STATE_TEXT: Record<CatalogValue["state"], string> = {
+  verified: "sources agree",
+  conflict: "sources disagree",
+  unclear: "needs a person",
+  missing: "missing",
+  reviewer_set: "set by you",
+};
+
+function CategoryLine({ category }: { category: ProductCategory | null }) {
+  if (!category || category.state === "none") return null;
+  if (category.state === "needs_review") {
+    return (
+      <p className="muted">
+        Category: waiting for you to choose
+        {category.suggested ? ` (suggested: ${category.suggested.name})` : ""}.
+      </p>
+    );
+  }
+  return (
+    <p>
+      Category: <strong>{category.category?.name}</strong>{" "}
+      <span className="muted">
+        {category.source === "person"
+          ? "· chosen by you"
+          : `· chosen by the LLM, ${Math.round((category.confidence ?? 0) * 100)}% sure`}
+      </span>
+    </p>
+  );
+}
+
+function CatalogTable({ values }: { values: CatalogValue[] }) {
+  const shown = values.filter((value) => value.state !== "missing");
+  const missing = values.filter((value) => value.state === "missing");
+  return (
+    <>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th scope="col">Attribute</th>
+              <th scope="col">Value</th>
+              <th scope="col">From the sources</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((value) => (
+              <tr key={value.code}>
+                <td>
+                  {value.name}{" "}
+                  <span
+                    className={
+                      value.state === "conflict" || value.state === "unclear"
+                        ? "badge warning"
+                        : "badge"
+                    }
+                  >
+                    {STATE_TEXT[value.state]}
+                  </span>
+                </td>
+                <td className="value">{value.shown ?? "—"}</td>
+                <td>
+                  <ul className="evidence">
+                    {value.values.map((source) => (
+                      <li key={source.id}>
+                        {source.display} from &ldquo;{source.raw_value}&rdquo;,{" "}
+                        {source.source_file_name}
+                        {source.flags.length > 0 &&
+                          ` (${source.flags.map((f) => VALUE_FLAG_TEXT[f] ?? f).join(", ")})`}
+                      </li>
+                    ))}
+                  </ul>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {missing.length > 0 && (
+        <p className="muted">
+          No source gave: {missing.map((value) => value.name).join(", ")}.
+        </p>
+      )}
+    </>
   );
 }
