@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useState } from "react";
 
 import { RequireActive } from "@/components/Account";
-import {
-  describeLocation,
-  FLAG_TEXT,
-  VALUE_FLAG_TEXT,
-} from "@/lib/location";
+import { ENRICHMENT_STATE_TEXT } from "@/components/EnrichmentPanel";
+import { ApiError, api, jsonBody } from "@/lib/api";
+import { describeLocation, FLAG_TEXT, VALUE_FLAG_TEXT } from "@/lib/location";
 import type {
   CatalogValue,
+  EnrichmentStarted,
+  GeneratedClaim,
+  GeneratedContent,
   Observation,
   ProductCategory,
   ProductDetail,
@@ -73,6 +75,14 @@ function ProductView() {
         Disagreements wait for you in the batch&apos;s review list.
       </p>
       <CatalogTable values={data.catalog_values} />
+      {data.generated_content && (
+        <GeneratedSection
+          batchId={data.batch_id}
+          productId={data.id}
+          content={data.generated_content}
+          onChange={product.reload}
+        />
+      )}
       {data.images.length > 0 && (
         <>
           <h2>Photos</h2>
@@ -99,8 +109,8 @@ function ProductView() {
       )}
       <h2>What the files say</h2>
       <p className="muted">
-        Each value is exactly as written in the file. Where the files give
-        more than one value for an attribute, every one is listed and marked
+        Each value is exactly as written in the file. Where the files give more
+        than one value for an attribute, every one is listed and marked
         &ldquo;differs&rdquo;; none is chosen here.
       </p>
       <ObservationTable
@@ -256,5 +266,139 @@ function CatalogTable({ values }: { values: CatalogValue[] }) {
         </p>
       )}
     </>
+  );
+}
+
+function GeneratedSection({
+  batchId,
+  productId,
+  content,
+  onChange,
+}: {
+  batchId: string;
+  productId: string;
+  content: GeneratedContent;
+  onChange: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const claims = (field: GeneratedClaim["field"]) =>
+    content.claims.filter((claim) => claim.field === field);
+  const title = claims("title")[0];
+
+  async function regenerate() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await api<EnrichmentStarted>(
+        `/batches/${batchId}/enrichment`,
+        jsonBody("POST", { product_ids: [productId] }),
+      );
+      setMessage("Writing now. Reload in a minute to see it.");
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError ? caught.message : "Couldn't start writing.",
+      );
+    } finally {
+      setBusy(false);
+      onChange();
+    }
+  }
+
+  const warn = content.state === "failed" || content.state === "out_of_date";
+  return (
+    <section className="stack">
+      <div className="title-row">
+        <h2>Generated content</h2>
+        <span className={`badge${warn ? " warning" : ""}`}>
+          {ENRICHMENT_STATE_TEXT[content.state]}
+        </span>
+      </div>
+      {content.message && <p className="muted">{content.message}</p>}
+      {content.version !== null && title && (
+        <div className="stack">
+          <ClaimLine claim={title} strong />
+          {claims("description").map((claim) => (
+            <ClaimLine key={`d${claim.index}`} claim={claim} />
+          ))}
+          <ul className="claims">
+            {claims("bullets").map((claim) => (
+              <li key={`b${claim.index}`}>
+                <ClaimLine claim={claim} />
+              </li>
+            ))}
+          </ul>
+          <p className="muted">
+            Version {content.version}
+            {content.model_id && ` · written by ${content.model_id}`}
+            {content.rules_version &&
+              ` · checked with ${content.rules_version}`}
+          </p>
+        </div>
+      )}
+      {content.can_generate && (
+        <div className="actions">
+          <button
+            type="button"
+            className="button"
+            disabled={busy}
+            onClick={regenerate}
+          >
+            {busy
+              ? "Starting…"
+              : content.version === null
+                ? "Generate"
+                : "Regenerate"}
+          </button>
+        </div>
+      )}
+      {message && <p className="muted">{message}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {content.left_out.length > 0 && (
+        <>
+          <h3>Left out</h3>
+          <ul className="list">
+            {content.left_out.map((item) => (
+              <li key={item.code}>
+                <span>{item.name}</span>
+                <span className="muted">{item.reason}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ClaimLine({
+  claim,
+  strong = false,
+}: {
+  claim: GeneratedClaim;
+  strong?: boolean;
+}) {
+  return (
+    <p className="claim">
+      {strong ? <strong>{claim.text}</strong> : claim.text}{" "}
+      {claim.facts.map((fact) => (
+        <span
+          key={`${fact.code}-${fact.display}`}
+          className="chip"
+          title={`${fact.name}: ${fact.display} (${fact.state})`}
+        >
+          {fact.name}{" "}
+          {fact.display.length > 40
+            ? `${fact.display.slice(0, 37)}…`
+            : fact.display}
+        </span>
+      ))}
+    </p>
   );
 }

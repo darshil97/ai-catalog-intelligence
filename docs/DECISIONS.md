@@ -741,3 +741,28 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 - A code base must keep a digit, so sequential codes (AK-1003, AK-1004) are different products, not variants.
 - Changing a rule means a new rule version; values under an older version are kept, not rewritten.
 
+
+## D37: Enrichment from settled attributes, with citations checked by code
+
+**Status:** Approved by the owner on 2026-11-15 (M7). The proposal is in [proposals/M7_CATALOG_ENRICHMENT.md](proposals/M7_CATALOG_ENRICHMENT.md).
+
+**Decision:** gpt-oss-120b writes each product's title, description and bullets from a numbered list of facts: its `verified` and `reviewer_set` attributes, plus its category when a person chose it or the LLM was sure. Every title, sentence and bullet names the facts it uses, and code checks them before anything is stored: the facts exist, each is really used, every quantity matches a cited fact within 1% under M6's unit rules, specification words (dishwasher safe, BPA-free, certified, …), colours and materials appear in a cited fact, and banned phrases (best, guaranteed, …) don't appear. A reply that fails is retried once with the reasons; if it fails again, nothing is stored and the product says why.
+
+**Owner's choices (2026-11-15):**
+1. Enrichment runs on demand as its own `enrich` pipeline, using no submission and leaving the batch's status alone; not as a final stage of `ingest`.
+2. Only `verified` and `reviewer_set` attributes feed text, plus a person-chosen or `assigned` category.
+3. Regenerating is offered only when text is out of date or failed; the same facts would return the same stored reply.
+4. Price, currency, SKU, GTIN and the supplier's category are never sent. The model number may appear in the title only.
+5. Claims are checked strictly; ordinary descriptive wording is allowed.
+6. Reaching the spend cap pauses the run: its jobs become `blocked_quota`, the run `paused` (which doesn't hold the user's active-run slot), and a person resumes it once spend is under the cap.
+7. `generated_content` holds one row per product version, with each claim's citations frozen as they were when written.
+8. At most 10 versions per product.
+9. A reply unusable after its retry marks the product `failed` with reasons; the run carries on, and no review task is opened until M9.
+10. Title ≤ 150 characters, 3–5 bullets ≤ 200 characters each, 2–5 description sentences ≤ 1,000 characters, in config.
+11. One opt-in live call before shipping, with the owner's OK at the time.
+
+**Consequences:**
+- Text never mentions an attribute in conflict, unclear or missing; the product page lists what was left out and why.
+- Text whose facts change (for example after a review decision) is shown as out of date, worked out by comparing fingerprints when read.
+- Vague descriptive words such as "sleek" can't be proven harmless and are allowed; specification-style claims can't be stored without a source.
+- Unlike ingest's LLM steps, which skip at the cap (D33), enrichment pauses, because a skipped product has nothing useful to show.

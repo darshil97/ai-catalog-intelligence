@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ImageGrid } from "@/components/ImageGrid";
+import { EnrichmentPanel } from "@/components/EnrichmentPanel";
 import { ReviewPanel } from "@/components/ReviewPanel";
 import { describeLocation, FLAG_TEXT } from "@/lib/location";
 import type {
@@ -147,6 +148,7 @@ export function Extraction({
         }}
       />
       <ImageGrid batchId={batchId} version={version} />
+      <EnrichmentPanel batchId={batchId} version={version} />
 
       {(variants.data?.items.length ?? 0) > 0 && (
         <section className="stack">
@@ -211,9 +213,7 @@ function SheetCard({ sheet }: { sheet: Sheet }) {
     sheet.rows_over_cap
       ? `${sheet.rows_over_cap} were past the row limit and weren't read`
       : "",
-    sheet.unreadable_rows
-      ? `${sheet.unreadable_rows} couldn't be parsed`
-      : "",
+    sheet.unreadable_rows ? `${sheet.unreadable_rows} couldn't be parsed` : "",
   ].filter(Boolean);
 
   return (

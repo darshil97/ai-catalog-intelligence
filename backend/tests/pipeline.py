@@ -12,7 +12,7 @@ import app.jobs.handlers  # noqa: F401 - registers the handlers
 from app.db import get_pool
 from app.jobs import queue
 from app.jobs.base import JobContext, get_handler
-from app.jobs.errors import PermanentJobError, TransientJobError
+from app.jobs.errors import PermanentJobError, QuotaBlockedError, TransientJobError
 from app.jobs.models import Job
 from app.jobs.settings import get_queue_settings
 from app.storage.backends.memory import MemoryObjectStore
@@ -79,6 +79,9 @@ def run_one() -> str | None:
     context = JobContext(job=job, wait=lambda seconds: None, should_stop=lambda: False)
     try:
         outcome = get_handler(job.job_type).run(context)
+    except QuotaBlockedError as exc:
+        with get_pool().connection() as conn:
+            queue.block(conn, job, exc.reason, str(exc))
     except TransientJobError as exc:
         with get_pool().connection() as conn:
             queue.retry_or_fail(conn, job, exc, settings)

@@ -14,6 +14,7 @@ from app.jobs.errors import (
     JobInterruptedError,
     LeaseLostError,
     PermanentJobError,
+    QuotaBlockedError,
     TransientJobError,
 )
 from app.jobs.models import Job, QueueSettings
@@ -222,6 +223,9 @@ class Worker:
                 raise LeaseLostError(f"Lease lost for job {job.id}") from None
             with get_pool().connection() as conn:
                 queue.release(conn, job)
+        except QuotaBlockedError as exc:
+            with get_pool().connection() as conn:
+                queue.block(conn, job, exc.reason, str(exc))
         except (TransientJobError, psycopg.OperationalError) as exc:
             with get_pool().connection() as conn:
                 queue.retry_or_fail(conn, job, exc, settings)

@@ -21,6 +21,7 @@ from app.config import get_llm_config, get_llm_task_config
 from app.db import get_pool, query
 from app.llm.base import LlmReply, LlmRequest, LlmUnavailableError, get_chat_backend
 from app.llm.prompts import render_prompt
+from app.usage import llm_month_spend
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -53,8 +54,7 @@ class LlmBudgetError(LlmTaskError):
 def month_spend() -> float:
     """Return every user's recorded LLM cost this calendar month, in USD."""
     with get_pool().connection() as conn:
-        row = conn.execute(query("llm", "month_spend")).fetchone()
-    return float(row["spent"]) if row else 0.0
+        return llm_month_spend(conn)
 
 
 def check_budget() -> None:

@@ -75,6 +75,11 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Lakh grouping** | Indian digit grouping, read as the same number. | "1,00,000" is 100000. |
 | **Category tree** | The fixed list of categories a product can be placed in. Seed data, not code. | Dining › Drinkware › Jugs and pitchers. |
 | **Enrichment** | Generating titles, descriptions and bullets from verified values. | Written by an LLM, citing the attributes used. |
+| **Fact** | A settled value the generated text may use: a verified or person-set attribute, or a settled category. Numbered in the prompt. | "F3 Capacity: 1.5 L". |
+| **Claim** | One title, description sentence or bullet of generated text, with the facts it cites. | "Holds 1.5 L", citing F3. |
+| **Grounding check** | Code that refuses a claim its cited facts don't support: wrong quantities, colours, materials or safety words, or superlatives. | "Dishwasher safe" is refused unless a cited fact says it. |
+| **Out of date** | Generated text whose facts have changed since it was written, such as after a review decision. Shown, but offered for regenerating. | Capacity was set to 1.6 L after the text said 1.5 L. |
+| **Fingerprint** | A hash of the facts a text was written from, compared with the current facts to tell when it is out of date. | Changes when any fact's value changes. |
 | **Validation** | Checking records against rules. | Flagging a missing brand. |
 | **Conflict** | Two sources give different values for one attribute. Both are kept, and a person decides. | The spreadsheet says 1.5 L, and the PDF says 1.2 L. |
 | **Review task** | An item waiting for a person's decision. | An uncertain image match. |
@@ -174,4 +179,5 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Usage ledger** | An append-only record of usage. | The `usage_ledger` table. |
 | **Retention** | How long data is kept before deletion. | 30 days, as an example. |
 | **`blocked_quota`** | A job paused because a global cap was reached. Not a failure. | LLM spend cap reached. |
+| **Paused run** | A run stopped by a global cap, its unfinished jobs `blocked_quota`. Nothing is lost, and a person resumes it once the cap allows. | Enrichment reaching the monthly LLM budget. |
 | **POC** | Proof of Concept: a limited version showing that an idea works. | This project's current stage. |
