@@ -85,3 +85,27 @@ LIMIT 1;
 SELECT count(*) AS count FROM review_tasks
 WHERE batch_id = %(batch_id)s AND owner_user_id = %(owner)s AND status = 'open'
   AND kind IN ('attribute_conflict', 'category');
+
+-- name: changes
+-- A person's decisions that change what a product's copy can say: values set, categories
+-- chosen, and photos accepted (whose text can add values). Newest last.
+SELECT pa.product_id, 'value' AS kind, a.name AS what, e.after ->> 'value' AS value,
+       e.created_at
+FROM review_events e
+JOIN product_attributes pa ON pa.id = e.entity_id
+JOIN attribute_definitions a ON a.id = pa.attribute_id
+WHERE e.batch_id = %(batch_id)s AND e.entity_type = 'product_attribute'
+UNION ALL
+SELECT e.entity_id AS product_id, 'category' AS kind, 'Category' AS what,
+       e.after ->> 'name' AS value, e.created_at
+FROM review_events e
+WHERE e.batch_id = %(batch_id)s AND e.entity_type = 'product_category'
+UNION ALL
+SELECT c.product_id, 'photo' AS kind, f.original_name AS what, NULL AS value, e.created_at
+FROM review_events e
+JOIN image_match_candidates c ON c.id = e.entity_id
+JOIN images i ON i.id = c.image_id
+JOIN source_files f ON f.id = i.source_file_id
+WHERE e.batch_id = %(batch_id)s AND e.entity_type = 'image_match_candidate'
+  AND e.after ->> 'decision' = 'accepted'
+ORDER BY created_at;

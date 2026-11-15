@@ -2,7 +2,8 @@
 
 enrich_plan     payload {"batch_id", "product_ids"}: one enrich_product chunk per listed
     product whose text could change. Without "product_ids" it's the last stage of processing
-    (ingest or photo_values): every product, and only when enrichment.auto is on.
+    (ingest or photo_values): every product with no review items waiting, and only when
+    enrichment.auto is on. The rest are written once their review is done.
 enrich_product  payload {"batch_id", "product_id"}: write the product's title, description and
     bullets from its settled facts, check every claim, and store a new version.
 
@@ -59,6 +60,9 @@ class EnrichPlanHandler:
             for item in found
             if (not wanted or item.product["id"] in wanted)
             and item.needs_generation(settings["max_versions_per_product"])
+            # Automatic writing waits until a product's review is done, so its copy includes
+            # the values a person settles rather than going out of date at once.
+            and not (auto and item.open_reviews)
         ]
         logger.info(
             "Enrichment planned: batch_id=%s products=%d chosen=%d auto=%s",

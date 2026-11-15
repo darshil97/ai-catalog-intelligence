@@ -368,3 +368,55 @@ def test_a_count_word_no_fact_gives_is_refused() -> None:
     # "one" and "single" are ordinary words too, so they're never refused on their own.
     reply["bullets"][1] = _claim("A single-handed pour, pack of 2", ids["pack_quantity"])
     _check(reply, sheet)
+
+
+# Why copy is needed (shown to people) --------------------------------------------------------
+
+
+def _product_facts(**changes: Any) -> Any:
+    from datetime import UTC, datetime
+
+    from app.enrichment.repository import ProductFacts
+
+    sheet = _sheet()
+    product = {
+        "enrichment_state": "generated",
+        "input_fingerprint": "older",
+        "versions": 1,
+        "generated_at": datetime(2026, 11, 15, tzinfo=UTC),
+    }
+    product.update(changes.pop("product", {}))
+    return ProductFacts(product=product, sheet=sheet, **changes)
+
+
+def test_reasons_name_the_decisions_since_the_copy_was_written() -> None:
+    from app.enrichment.repository import _describe
+
+    item = _product_facts(
+        changes=(
+            _describe({"kind": "value", "what": "Capacity", "value": "1.5 L"}),
+            _describe({"kind": "category", "what": "Category", "value": "Jugs and pitchers"}),
+            _describe({"kind": "photo", "what": "side.jpg", "value": None}),
+        )
+    )
+    assert item.state == "out_of_date"
+    assert item.reasons == [
+        'Since the copy was written, you set Capacity to "1.5 L".',
+        'Since the copy was written, you chose the category "Jugs and pitchers".',
+        "Since the copy was written, you confirmed the photo side.jpg, which can add values.",
+    ]
+    # Out of date with no recorded decision (for example a photo's values read later).
+    assert _product_facts().reasons == ["Values it uses have changed since the copy was written."]
+
+
+def test_a_product_in_review_waits_for_its_copy() -> None:
+    waiting = _product_facts(
+        product={"enrichment_state": "none", "input_fingerprint": None, "generated_at": None},
+        open_reviews=2,
+    )
+    assert waiting.state == "none" and waiting.needs_generation(10)
+    assert waiting.reasons[0].startswith("Waiting for 2 review items")
+    fresh = _product_facts(
+        product={"enrichment_state": "none", "input_fingerprint": None, "generated_at": None}
+    )
+    assert fresh.reasons == ["No copy has been written yet."]

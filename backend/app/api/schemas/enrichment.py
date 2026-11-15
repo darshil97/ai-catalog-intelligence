@@ -67,6 +67,11 @@ class ProductEnrichment(BaseModel):
     facts: int = Field(..., description="Settled facts it can be written from.")
     left_out: int = Field(..., description="Attributes that can't be used yet.")
     can_generate: bool = Field(..., description="Whether generating now could change anything.")
+    open_reviews: int = Field(0, description="Review items about it still waiting.")
+    reasons: list[str] = Field(
+        default_factory=list,
+        description="Why its copy is missing, waiting or out of date, for people.",
+    )
 
 
 class BatchEnrichment(BaseModel):
@@ -120,3 +125,8 @@ class GeneratedContent(BaseModel):
         default_factory=list, description="Attributes the text can't use yet, and why."
     )
     can_generate: bool = Field(..., description="Whether Regenerate could change anything.")
+    open_reviews: int = Field(0, description="Review items about it still waiting.")
+    reasons: list[str] = Field(
+        default_factory=list,
+        description="Why its copy is missing, waiting or out of date, for people.",
+    )

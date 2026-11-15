@@ -614,7 +614,7 @@ select:focus {
   overflow: hidden;
 }
 
-.list li {
+.list > li {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 1rem;
@@ -624,11 +624,11 @@ select:focus {
   border-top: 1px solid var(--border);
 }
 
-.list li:first-child {
+.list > li:first-child {
   border-top: 0;
 }
 
-.list li.child {
+.list > li.child {
   padding-left: 2.25rem;
 }
 
@@ -1437,4 +1437,16 @@ details.section[open] > summary::after {
 
 details.section:not([open]) {
   gap: 0;
+}
+
+/* Why copy is needed or waiting. */
+.reasons {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.reasons li + li {
+  margin-top: 0.15rem;
 }
