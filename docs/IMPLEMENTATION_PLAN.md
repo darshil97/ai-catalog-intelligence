@@ -17,8 +17,8 @@ Each module gets its own proposal and approval before work starts, and review af
 | M5A | Image processing | M2, M0B | Completed |
 | M5B | Image association | M3, M4, M5A | Completed |
 | M6 | Product normalization | M3, M4 | Completed |
-| M7 | Catalog enrichment | M6 | In Progress |
-| M8 | Catalog validation | M6, M7 | Not Started |
+| M7 | Catalog enrichment | M6 | Completed |
+| M8 | Catalog validation | M6, M7 | In Progress |
 | M9 | Human review | M5B, M8 | Not Started |
 | M10 | Export | M9 | Not Started |
 
@@ -478,7 +478,7 @@ Generated cases in the tests cover lookalike products, conflicting codes, two co
 
 ## M7 Catalog enrichment
 
-**Status:** proposal approved by the owner on 2026-11-15 (D37), all eleven decisions as recommended. In progress on branch `m7-enrichment`.
+**Status:** proposal approved by the owner on 2026-11-15 (D37), all eleven decisions as recommended. **Completed on 2026-11-15,** by the owner's decision, without a live acceptance run. Shipped as `8f0b2d0`: migration `0010` applied to `production` (by CI) and `test`, and the worker and API run `8f0b2d0`. `dev` is still at `0005`. A check of `production` afterwards found no batches and no enrich runs, so the feature has run against the real model only in the opt-in live test, not through the deployed app.
 
 **Scope**
 - Titles, descriptions and bullet points from verified attributes.
@@ -500,8 +500,8 @@ Generated cases in the tests cover lookalike products, conflicting codes, two co
 - A retry reuses the stored result.
 - The cap is reached mid-run, and the job pauses without being lost.
 
-**Implementation notes (built and checked locally; not yet shipped)**
-- Migration `0010`: `generated_content` (one row per product version, citations frozen per claim), `products.enrichment_state`, `enrichment_message` and `enrichment_at`, and `paused` runs with `pause_reason`. Expand-only. Applied to `test` on 2026-11-15 with the owner's OK; not yet to `production` or `dev`.
+**Implementation notes**
+- Migration `0010`: `generated_content` (one row per product version, citations frozen per claim), `products.enrichment_state`, `enrichment_message` and `enrichment_at`, and `paused` runs with `pause_reason`. Expand-only. Applied to `test` on 2026-11-15 with the owner's OK, then to `production` by CI; `dev` is still at `0005`.
 - New `enrich` pipeline: `enrich_plan` picks products whose text is missing, failed or out of date, then one `enrich_product` per product (one gpt-oss-120b call). It uses no submission and isn't tied to the batch's status, like `photo_values`.
 - `app/enrichment`: `facts.py` (settled facts, left-out reasons, fingerprint; shared with the API), `grounding.py` (the checks in D37, using M6's unit rules), `models.py` (reply shape), `repository.py`. Prompt `catalog/enrichment`, settings under `enrichment:` and `llm.tasks.enrichment` in `config.yaml`.
 - `blocked_quota` is used for the first time: `QuotaBlockedError` from a handler makes `queue.block` set that job and the run's other pending jobs to `blocked_quota` (no attempt counted) and the run to `paused`; `queue.resume_run` puts them back. Monthly spend is now readable by the API (`app/usage/spend.py`).
@@ -513,9 +513,13 @@ Generated cases in the tests cover lookalike products, conflicting codes, two co
 
 Unrelated and pre-existing: running `test_ingest_kinds` before `test_vision` in one process fails the vision tests, because it sets Pillow's global pixel limit.
 
+**Live acceptance:** not run. Suggested check when convenient: process `acme-price-list.csv`, settle its review items, press Generate, then change a value in review and confirm the product's text shows "Out of date" and regenerates as version 2.
+
 ---
 
 ## M8 Catalog validation
+
+**Status:** proposal approved by the owner on 2026-11-15 (D38), all nine decisions as recommended. In progress on branch `m8-validation`.
 
 **Scope**
 - Rule registry and a small configurable marketplace ruleset.
@@ -528,6 +532,15 @@ Unrelated and pre-existing: running `test_ingest_kinds` before `test_vision` in 
 
 **Tests**
 - Registry contract, each rule, and severity handling.
+
+**Implementation notes (built and checked locally; not yet shipped)**
+- Migration `0011`: `validation_overrides` (warnings set aside) and `batches.target_marketplace` (default `shopify`). Expand-only. Applied to `test` on 2026-11-15 with the owner's OK.
+- `app/validation`: `base.py` (findings, the rule registry), `context.py` (loads one batch in seven queries), `engine.py` (severities from config and the profile, set-asides by fingerprint, errors first), `repository.py` (set aside and undo, each recorded in `review_events`). 17 rules in four modules under `rules/` (attributes, product, text, duplicates) rather than one module per rule.
+- Settings under `validation:` in `config.yaml`; the API refuses to start if they name an unknown rule or attribute, or leave a rule without a default severity. Marketplace numbers are marked unverified (D38, decision 8).
+- API: `GET /batches/{id}/validation`, `PUT /batches/{id}/validation/profile` (in place of the proposed `PATCH /batches/{id}`, which requires a name), `POST` and `DELETE /products/{id}/validation/set-aside`; `GET /products/{id}` adds `validation`.
+- Frontend: a "Checks" panel on the batch page (marketplace, "N of M ready", each product's summary) and a section on the product page (issues by severity, where to fix them, Set aside with a reason, Undo).
+
+**Tests:** 33 fast tests in `test_validation.py` (registry and settings, every rule, every profile, duplicates and variants, set-asides and fingerprints, a broken rule) and 5 database tests in `test_validation_worker.py` on Neon `test` (checks and profiles end to end, current after a change, set aside until it changes with undo and audit, cross-user, signed-out and waitlisted access, an empty batch). All pass.
 
 ---
 

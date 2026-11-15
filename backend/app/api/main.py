@@ -16,14 +16,18 @@ from app.api.routes import (
     review,
     suppliers,
     test_runs,
+    validation,
 )
 from app.compute.starter import request_worker_start
 from app.config import get_api_config
 from app.middleware import RequestContextMiddleware
 from app.middleware.request_context import REQUEST_ID_HEADER
 from app.utils.logger import configure_logging
+from app.validation import check_settings
 
 configure_logging()
+# Refuse to start with checks that name rules that don't exist (D38).
+check_settings()
 
 
 @asynccontextmanager
@@ -56,4 +60,5 @@ app.include_router(files.router)
 app.include_router(products.router)
 app.include_router(review.router)
 app.include_router(enrichment.router)
+app.include_router(validation.router)
 app.include_router(test_runs.router)

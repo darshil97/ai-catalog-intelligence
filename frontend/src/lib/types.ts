@@ -206,6 +206,7 @@ export type ProductDetail = Product & {
   images: ProductImage[];
   differing_attributes: string[];
   generated_content: GeneratedContent | null;
+  validation: ProductValidation | null;
 };
 
 export type SheetColumn = {
@@ -457,4 +458,39 @@ export type GeneratedContent = {
   created_at: string | null;
   left_out: LeftOutAttribute[];
   can_generate: boolean;
+};
+
+// Catalog checks (M8).
+
+export type Severity = "error" | "warning" | "info";
+
+export type ValidationIssue = {
+  rule: string;
+  rule_version: number;
+  severity: Severity;
+  subject: string;
+  message: string;
+  other_product_id: string | null;
+  fix: "review" | "generate" | "photos" | null;
+  set_aside: { reason: string; by: string; at: string } | null;
+};
+
+export type ProductValidation = {
+  profile: string;
+  profile_name: string;
+  can_approve: boolean;
+  errors: number;
+  warnings: number;
+  info: number;
+  issues: ValidationIssue[];
+};
+
+export type BatchValidation = {
+  batch_id: string;
+  profile: string;
+  profile_name: string;
+  profiles: { code: string; name: string }[];
+  rules_version: string;
+  ready: number;
+  items: (ProductValidation & { product_id: string; product_key: string })[];
 };

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { RequireActive } from "@/components/Account";
+import { checkSummary } from "@/components/ChecksPanel";
 import { ENRICHMENT_STATE_TEXT } from "@/components/EnrichmentPanel";
 import { ApiError, api, jsonBody } from "@/lib/api";
 import { describeLocation, FLAG_TEXT, VALUE_FLAG_TEXT } from "@/lib/location";
@@ -15,6 +16,8 @@ import type {
   GeneratedContent,
   Observation,
   ProductCategory,
+  ProductValidation,
+  ValidationIssue,
   ProductDetail,
 } from "@/lib/types";
 import { useApiResource } from "@/lib/useApiResource";
@@ -69,6 +72,14 @@ function ProductView() {
         </p>
       ))}
       <CategoryLine category={data.category} />
+      {data.validation && (
+        <ChecksSection
+          batchId={data.batch_id}
+          productId={data.id}
+          checks={data.validation}
+          onChange={product.reload}
+        />
+      )}
       <h2>Catalog values</h2>
       <p className="muted">
         Each value in standard units, shown only when every source agrees.
@@ -400,5 +411,165 @@ function ClaimLine({
         </span>
       ))}
     </p>
+  );
+}
+
+const SEVERITY_TEXT: Record<ValidationIssue["severity"], string> = {
+  error: "Error",
+  warning: "Warning",
+  info: "Note",
+};
+
+const FIX_TEXT: Record<NonNullable<ValidationIssue["fix"]>, string> = {
+  review: "Fix in the batch's review list",
+  generate: "Generate text on the batch page",
+  photos: "Confirm a photo on the batch page",
+};
+
+function ChecksSection({
+  batchId,
+  productId,
+  checks,
+  onChange,
+}: {
+  batchId: string;
+  productId: string;
+  checks: ProductValidation;
+  onChange: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [asking, setAsking] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const key = (issue: ValidationIssue) => `${issue.rule}:${issue.subject}`;
+
+  async function send(path: string, init: RequestInit) {
+    setError(null);
+    try {
+      await api<ProductValidation>(path, init);
+      setAsking(null);
+      setReason("");
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError ? caught.message : "Couldn't save that.",
+      );
+    } finally {
+      onChange();
+    }
+  }
+
+  const base = `/products/${productId}/validation/set-aside`;
+  return (
+    <section className="stack">
+      <div className="title-row">
+        <h2>Checks for {checks.profile_name}</h2>
+        <span className={`badge${checks.errors ? " warning" : ""}`}>
+          {checkSummary(checks)}
+        </span>
+      </div>
+      {checks.issues.length === 0 && <p className="muted">Nothing to fix.</p>}
+      <ul className="list">
+        {checks.issues.map((issue) => (
+          <li
+            key={key(issue)}
+            className={issue.set_aside ? "muted" : undefined}
+          >
+            <span>
+              <span
+                className={`badge${issue.severity === "error" ? " warning" : ""}`}
+              >
+                {SEVERITY_TEXT[issue.severity]}
+              </span>{" "}
+              {issue.message}
+            </span>
+            <span className="muted">
+              {issue.other_product_id && (
+                <>
+                  <Link href={`/products/${issue.other_product_id}`}>
+                    Open the other product
+                  </Link>
+                  {" · "}
+                </>
+              )}
+              {issue.fix && !issue.set_aside && (
+                <Link href={`/batches/${batchId}`}>{FIX_TEXT[issue.fix]}</Link>
+              )}
+              {issue.set_aside && `Set aside: ${issue.set_aside.reason}`}
+            </span>
+            {issue.severity === "warning" && (
+              <span className="actions">
+                {issue.set_aside ? (
+                  <button
+                    type="button"
+                    className="button link"
+                    onClick={() =>
+                      send(
+                        `${base}?rule=${encodeURIComponent(issue.rule)}&subject=${encodeURIComponent(issue.subject)}`,
+                        { method: "DELETE" },
+                      )
+                    }
+                  >
+                    Undo
+                  </button>
+                ) : asking === key(issue) ? (
+                  <form
+                    className="confirm"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void send(
+                        base,
+                        jsonBody("POST", {
+                          rule: issue.rule,
+                          subject: issue.subject,
+                          reason,
+                        }),
+                      );
+                    }}
+                  >
+                    <input
+                      value={reason}
+                      maxLength={500}
+                      required
+                      placeholder="Why it's fine"
+                      aria-label="Reason"
+                      onChange={(event) => setReason(event.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className="button"
+                      disabled={!reason.trim()}
+                    >
+                      Set aside
+                    </button>
+                    <button
+                      type="button"
+                      className="button link"
+                      onClick={() => setAsking(null)}
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    className="button link"
+                    onClick={() => {
+                      setAsking(key(issue));
+                      setReason("");
+                    }}
+                  >
+                    Set aside
+                  </button>
+                )}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }

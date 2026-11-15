@@ -9,7 +9,8 @@
 - **Images** (`embedding_models`, `images`, `image_duplicate_groups`, `image_embeddings`, `pipeline_runs.image_duplicate_groups`): migration `0007` (M5A), applied to `production` and `test`. `dev` is still at `0005`.
 - **Image association and review** (`image_match_candidates`, `product_images`, `review_tasks`, `review_events`, image match counts on `pipeline_runs`): migration `0008` (M5B), applied to `production` and `test`. `dev` is still at `0005`.
 - **Normalization** (`normalized_values`, `product_attributes`, `variant_candidates`, seeded `categories`, category columns on `products`, two more review kinds): migration `0009` (M6), applied to `production` and `test`. `dev` is still at `0005`.
-- **Enrichment** (`generated_content`, enrichment columns on `products`, `paused` runs with `pause_reason`): migration `0010` (M7), applied to `test` only so far.
+- **Enrichment** (`generated_content`, enrichment columns on `products`, `paused` runs with `pause_reason`): migration `0010` (M7), applied to `production` (by CI) and `test`. `dev` is still at `0005`.
+- **Validation** (`validation_overrides`, `batches.target_marketplace`): migration `0011` (M8), applied to `test` only so far.
 
 This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
@@ -421,9 +422,23 @@ One row per PDF or image read by the `documents` stage (M4): `source_file_id` PK
 
 **M7 on `products`:** `enrichment_state` (`none`, `generated`, `skipped`, `failed`), `enrichment_message` and `enrichment_at`. "Out of date" isn't stored: it's worked out by comparing fingerprints.
 
-### `validation_issues`
+### `validation_issues` → `validation_overrides`
 
-`id`, `product_id` FK, `rule_code`, `rule_version`, `severity`, `attribute_id` FK nullable, `details` JSONB, `status` (`open`, `resolved`, `ignored`), `created_at`, `resolved_at`.
+**Not built as planned (D38):** issues aren't stored. Checks run whenever a batch or product is read, so they're always current. Only the warnings a person sets aside are stored, in `validation_overrides`:
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `product_id`, `batch_id`, `owner_user_id` | FK | Cascade |
+| `rule_code` | TEXT NOT NULL | Such as `duplicate_name` |
+| `subject` | TEXT NOT NULL | The attribute code, the other product's ID, or `''` |
+| `fingerprint` | TEXT NOT NULL | What the check saw; the warning stays aside only while it matches |
+| `reason` | TEXT NOT NULL | 1–500 characters |
+| `created_by`, `created_at` | | |
+
+**Constraint:** `UNIQUE(product_id, rule_code, subject)`. Setting aside and undoing are recorded in `review_events` (`entity_type` `validation_issue`).
+
+**M8 on `batches`:** `target_marketplace` TEXT NOT NULL DEFAULT `'shopify'`, checked in code against the profiles in config.
 
 ### `variant_candidates`
 

@@ -766,3 +766,25 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 - Text whose facts change (for example after a review decision) is shown as out of date, worked out by comparing fingerprints when read.
 - Vague descriptive words such as "sleek" can't be proven harmless and are allowed; specification-style claims can't be stored without a source.
 - Unlike ingest's LLM steps, which skip at the cap (D33), enrichment pauses, because a skipped product has nothing useful to show.
+
+## D38: Validation checked when read, with marketplace profiles
+
+**Status:** Approved by the owner on 2026-11-15 (M8), all nine decisions as recommended. The proposal is in [proposals/M8_CATALOG_VALIDATION.md](proposals/M8_CATALOG_VALIDATION.md).
+
+**Decision:** Products are checked by deterministic rules in a registry, as shared code that runs whenever a batch, a product, an approval (M9) or an export (M10) is read. Nothing is fixed automatically. Each issue is an `error` (blocks approval, can't be set aside), a `warning` (can be set aside with a reason) or `info`. A batch has one marketplace profile (`generic`, `shopify` or `amazon_in`, default `shopify`) that adds required attributes, limits and severities from config. Only the warnings a person sets aside are stored.
+
+**Owner's choices (2026-11-15):**
+1. Checks run when read, in the API and worker alike; `validation_overrides` replaces the planned `validation_issues`.
+2. error, warning and info, as above.
+3. One profile per batch, default Shopify, changeable at any time.
+4. Required: Shopify name and price; Amazon India name, brand, GTIN and price; generic name and brand; and a settled category for every profile.
+5. Duplicates within one batch only, in pairs, never merged: same GTIN (error); same model number, same brand and name, same or near-duplicate photo (warnings). Variant pairs aren't duplicates.
+6. Warnings are set aside with a reason, until what was checked changes, and recorded in `review_events`.
+7. Missing or out-of-date generated text is a warning; a title over the profile's limit is an error.
+8. Marketplace numbers stay in config, marked unverified until checked against current documentation.
+9. Measurement ceilings of 1,000 kg, 5 m and 1,000 L, as warnings.
+
+**Consequences:**
+- The API runs business rules, which PROJECT_CONTEXT had placed in the worker. Files and models still never reach the API.
+- Issues are always current, and no EC2 time is spent on them. Each read costs about five more queries.
+- If batches grow large, the same rules can run in a worker stage and store their results without changing.

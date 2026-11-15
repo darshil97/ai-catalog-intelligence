@@ -29,6 +29,7 @@ def get_product(profile: Profile, product_id: UUID) -> dict[str, Any]:
     """Return a product with its observations and accepted images, or 404."""
     from app.api.services.enrichment import product_content
     from app.api.services.review import thumbnail_url
+    from app.api.services.validation import product_validation
 
     limit = get_catalog_config()["max_list_items"]
     try:
@@ -40,6 +41,7 @@ def get_product(profile: Profile, product_id: UUID) -> dict[str, Any]:
             )
             category = products.category(conn, profile.user_id, product_id)
             generated = product_content(conn, profile, product)
+            checks = product_validation(conn, profile.user_id, product_id, product["batch_id"])
     except products.ProductNotFoundError:
         not_found()
     product["catalog_values"] = [
@@ -56,6 +58,7 @@ def get_product(profile: Profile, product_id: UUID) -> dict[str, Any]:
     ]
     product["category"] = _category(category)
     product["generated_content"] = generated
+    product["validation"] = checks
     product["images"] = [
         {
             "image_id": row["image_id"],

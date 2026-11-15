@@ -81,6 +81,11 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Out of date** | Generated text whose facts have changed since it was written, such as after a review decision. Shown, but offered for regenerating. | Capacity was set to 1.6 L after the text said 1.5 L. |
 | **Fingerprint** | A hash of the facts a text was written from, compared with the current facts to tell when it is out of date. | Changes when any fact's value changes. |
 | **Validation** | Checking records against rules. | Flagging a missing brand. |
+| **Check** | One rule applied to a product, reporting what's missing, conflicting, suspicious or duplicated. Run whenever the product is read. | "Price is required for Shopify, but sources disagree." |
+| **Severity** | How much a check's finding matters: an error blocks approval, a warning can be set aside, info never blocks. | A missing category is an error. |
+| **Marketplace profile** | The marketplace a batch is checked for, adding its required attributes and limits. | Shopify, Amazon India, or generic. |
+| **Set aside** | Accepting a warning with a reason. It comes back if what it checked changes. | "This supplier never gives brands." |
+| **Duplicate (product)** | Two products in one batch that look like the same product entered twice. Flagged, never merged; unlike variants, which differ in colour or size. | Two SKUs with the same barcode. |
 | **Conflict** | Two sources give different values for one attribute. Both are kept, and a person decides. | The spreadsheet says 1.5 L, and the PDF says 1.2 L. |
 | **Review task** | An item waiting for a person's decision. | An uncertain image match. |
 | **Fabrication** | An AI stating a specification that no source supports. The product must never do this. | Inventing "dishwasher safe". |
