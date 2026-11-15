@@ -5,9 +5,9 @@
 | | |
 |---|---|
 | **Current status** | **M0A, M0B and M1 complete.** Everything below describes the planned system unless listed as implemented here. |
-| **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline), job queue and on-demand EC2 worker, CI and deploys. **M1:** Neon Auth token checks, profiles, allowlist and waitlist, usage ledger and limits, supplier and batch CRUD with UI, admin-only test runs. **M2:** direct-to-S3 uploads with size and checksum checks, duplicate detection, safe ZIP expansion, worker file checks, batch processing with run progress. **M3:** CSV and XLSX reading, header detection, column mapping by known names then gpt-oss-120b with each supplier's layout remembered (D32), identifier cleanup, products and attribute observations traced to file, sheet, row and column, the first-N product limit, and product and sheet views. **M4:** PDF text with positions, OCR of scans and photos (RapidOCR), images inside PDFs kept as files, values read by gpt-oss-120b and kept only if quoted from the page (D33), products from codes on pages when a batch has no spreadsheet, values that differ between sources flagged, and the monthly LLM spend cap. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
-| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0006` are applied to `production` and `test`, and through `0005` to `dev`. |
-| **Next module** | **M5A Image processing**: approved on 2026-11-10 and built, with Titan embeddings on Bedrock (D34). Still to do: apply the IAM change set, commit, deploy, and accept live (see [M5A](IMPLEMENTATION_PLAN.md#m5a-image-processing)). M4 was marked complete without a live acceptance run. Open from M1: admin-only test runs are unreachable, because Neon Auth tokens never carry the admin role (see [M1 notes](IMPLEMENTATION_PLAN.md#m1-implementation-notes)). |
+| **Implemented so far** | Project documentation. Backend skeleton (config, logging, request IDs, `/health`, Alembic baseline), job queue and on-demand EC2 worker, CI and deploys. **M1:** Neon Auth token checks, profiles, allowlist and waitlist, usage ledger and limits, supplier and batch CRUD with UI, admin-only test runs. **M2:** direct-to-S3 uploads with size and checksum checks, duplicate detection, safe ZIP expansion, worker file checks, batch processing with run progress. **M3:** CSV and XLSX reading, header detection, column mapping by known names then gpt-oss-120b with each supplier's layout remembered (D32), identifier cleanup, products and attribute observations traced to file, sheet, row and column, the first-N product limit, and product and sheet views. **M4:** PDF text with positions, OCR of scans and photos (RapidOCR), images inside PDFs kept as files, values read by gpt-oss-120b and kept only if quoted from the page (D33), products from codes on pages when a batch has no spreadsheet, values that differ between sources flagged, and the monthly LLM spend cap. **M5A:** for every kept image, a thumbnail, pHash, hue histogram and Titan embedding (D34), with near-duplicate groups and an Images grid. **Live:** [API on Render](https://YOUR-SERVICE.onrender.com/health) and [frontend on Vercel](https://ai-catalog-intelligence.vercel.app). |
+| **Neon** | Project `ai-catalog-intelligence` (`<NEON_PROJECT_ID>`), Sydney, Postgres 18, compute capped at 1 CU, Better Auth on. Branches: `production` (default), `dev` and `test`. Migrations through `0007` are applied to `production` and `test`, and through `0005` to `dev`. |
+| **Next module** | **M5B Image association**: approved on 2026-11-15 and built (D35). Still to do: commit, deploy, and accept live (see [M5B](IMPLEMENTATION_PLAN.md#m5b-image-association)). M4 was marked complete without a live acceptance run. Open from M1: admin-only test runs are unreachable, because Neon Auth tokens never carry the admin role (see [M1 notes](IMPLEMENTATION_PLAN.md#m1-implementation-notes)). |
 | **Last updated** | 2026-11-10 |
 
 Related documents: [Implementation plan](IMPLEMENTATION_PLAN.md) · [Database schema](DATABASE_SCHEMA.md) · [Decisions](DECISIONS.md) · [Deployment](DEPLOYMENT.md) · [Glossary](GLOSSARY.md)
@@ -158,16 +158,16 @@ ai-catalog-intelligence/
         ├── ocr/                  # OCR engines: rapidocr, tesseract (comparison only)  [worker only]
         ├── vision/               # pHash, hue histogram, thumbnails, embedders/  [worker only]
         ├── images/               # image records and similarity queries  [shared]
-        ├── matching/signals/     # image↔SKU evidence
+        ├── matching/             # signals/ (image↔product evidence), decision rule
+        ├── review/               # review tasks, decisions, audit trail  [shared]
         ├── normalization/        # units, categories, mapping (deterministic)
         ├── enrichment/           # titles, descriptions and bullets (M7)
         ├── validation/rules/
-        ├── review/
         ├── export/exporters/     # csv, xlsx, shopify
         └── templates/{prompts,sql}/
 ```
 
-- Dependencies split into `api` and `worker` extras. Torch, OpenCV and OCR exist only in `worker`.
+- Dependencies split into `api` and `worker` extras. OpenCV, OCR, PDF and LLM libraries exist only in `worker`.
 - `GUIDELINES.md` applies to backend Python only and is a reference, not a strict rule. Record intentional differences in `DECISIONS.md`.
 - The backend publishes its OpenAPI schema, and frontend TypeScript types are generated from it. Until the generator supports TypeScript 6, they're written by hand (D28).
 
@@ -503,7 +503,7 @@ The architecture assumes:
 - **First processing is slow to start:** EC2 must boot.
 - **Multiple accounts from one person** can only be bounded by global caps, not prevented.
 - **Neon Auth** is described by Neon as in active development.
-- **Image throughput on the worker** is estimated from a laptop benchmark (about 1.5–2 s per image, mostly OCR and the Titan call) until the first production run records real timings.
+- **Image throughput on the worker** was measured on one four-photo batch (38 s end to end). Larger batches are estimated from it, not yet measured.
 - **India↔Sydney file transfer** has noticeable latency.
 
 ---

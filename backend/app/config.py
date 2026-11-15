@@ -343,3 +343,19 @@ def get_embeddings_config() -> dict[str, Any]:
         "timeout_seconds": int(section["timeout_seconds"]),
         "price_per_image": float(section["price_per_image"]),
     }
+
+
+def get_matching_config() -> dict[str, Any]:
+    """Return image association settings.
+
+    Keys: weights (signal name to float), visual_min_similarity (float),
+    min_text_match_chars, review_threshold (float), max_candidates_per_image.
+    """
+    section = dict(get_config()["matching"])
+    return {
+        "weights": {str(name): float(value) for name, value in section["weights"].items()},
+        "visual_min_similarity": float(section["visual_min_similarity"]),
+        "min_text_match_chars": int(section["min_text_match_chars"]),
+        "review_threshold": float(section["review_threshold"]),
+        "max_candidates_per_image": int(section["max_candidates_per_image"]),
+    }

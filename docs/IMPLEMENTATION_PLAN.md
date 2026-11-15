@@ -14,8 +14,8 @@ Each module gets its own proposal and approval before work starts, and review af
 | M2 | File ingestion and storage | M0B, M1 | Completed |
 | M3 | Spreadsheet extraction | M2 | Completed |
 | M4 | Document and image text extraction | M3 | Completed |
-| M5A | Image processing | M2, M0B | In Progress |
-| M5B | Image association | M3, M4, M5A | Not Started |
+| M5A | Image processing | M2, M0B | Completed |
+| M5B | Image association | M3, M4, M5A | In Progress |
 | M6 | Product normalization | M3, M4 | Not Started |
 | M7 | Catalog enrichment | M6 | Not Started |
 | M8 | Catalog validation | M6, M7 | Not Started |
@@ -350,7 +350,7 @@ RapidOCR stays (D7).
 
 ## M5A Image processing
 
-**Status:** proposal approved by the owner on 2026-11-10, with Titan embeddings on Bedrock in place of OpenCLIP (D34). **In progress:** built and tested locally and against the Neon `test` branch. Not yet committed, deployed or accepted live.
+**Status:** proposal approved by the owner on 2026-11-10, with Titan embeddings on Bedrock in place of OpenCLIP (D34). **Completed on 2026-11-15.** Merged and deployed (CI run 37), migration `0007` applied to `production` (by CI) and `test`, and live acceptance passed (owner, 2026-11-15). `dev` is still at `0005`.
 
 **Scope**
 - CPU throughput benchmark for CLIP and OCR, which informs chunk sizes.
@@ -390,11 +390,17 @@ RapidOCR stays (D7).
 | OCR (M4) | 0.45–0.61 s | 1.16 s |
 | Titan embedding | 0.69–1.06 s | 2.63 s |
 
-About 1.5–2 seconds per image, almost all OCR and the Titan call, so a 25-image batch needs about a minute of image work here, and an estimated 2–3 minutes on the t3a.medium. With about a minute to boot, a batch costs well under 10 EC2 minutes, so the 30-hour monthly cap allows hundreds of batches. Real worker timings are stored per image (`images.timings`) and will be added after the first production run.
+About 1.5–2 seconds per image, almost all OCR and the Titan call, so a 25-image batch needs about a minute of image work here, and an estimated 2–3 minutes on the t3a.medium. With about a minute to boot, a batch costs well under 10 EC2 minutes, so the 30-hour monthly cap allows hundreds of batches. Real worker timings are stored per image (`images.timings`).
+
+**On the worker (first production run, 2026-11-15):** Titan embedding 0.17–0.24 s per image (in-region, faster than from the Mac); hash and colour 6–105 ms; thumbnail 28–67 ms; OCR jobs 2.4–8.0 s per photo, the first including model loading. The whole four-photo batch took 38 seconds from start to finish, of which reading values with the LLM took 16 s.
+
+**Live acceptance (2026-11-15):** the owner processed the four selfie-stick box photos on Vercel. All four were processed, embedded and shown with thumbnails, and none was grouped as a duplicate, as expected for four different sides of a box. The label photo made product `B094YFFSMY` with 8 values, the logo on the front made no product (its 4 values were set aside with reasons), and the run cost about $0.003 (LLM $0.0024, embeddings $0.0003). The API logs showed no errors. Near-duplicate grouping is covered by the automated tests, not yet by a live run.
 
 ---
 
 ## M5B Image association
+
+**Status:** proposal approved by the owner on 2026-11-15 (D35). **In progress:** built and tested locally and against the Neon `test` branch. Not yet committed, deployed or accepted live.
 
 **Scope**
 - Signal registry: SKU/model number, filename, OCR text, brand and attributes, supplier identifiers, visual similarity.
@@ -409,6 +415,27 @@ About 1.5–2 seconds per image, almost all OCR and the Titan call, so a 25-imag
 - Adversarial lookalike products.
 - Conflicting signals.
 - Threshold configuration, tuned on a small labelled sample.
+
+**Approved decisions (2026-11-15):** accepted photos are read for values; near-duplicates of an accepted photo go to review with its product suggested; a minimal review panel on the batch page, with the full queue in M9 (D35).
+
+**Implementation notes**
+- Migration `0008`: `image_match_candidates`, `product_images`, `review_tasks` (one per image), `review_events` (append-only, enforced by a trigger), and image match counts on `pipeline_runs`.
+- The `ingest` pipeline gains an `associate` stage: `associate_images` scores every image against every product, auto-accepts single-code matches, opens review tasks, and queues `photo_value` jobs for accepted photos not yet read. A new `photo_values` pipeline (`photo_values_plan`, then `photo_value` per photo) reads photos a person accepts later.
+- `app/matching`: a signal registry with seven signals, weights in config, and the decision rule. `app/review`: tasks, decisions and the audit trail.
+- API: `GET /batches/{id}/matches`, `GET /batches/{id}/review-tasks`, `POST /review-tasks/{id}/decision`, `POST /batches/{id}/photo-values`. `GET /products/{id}` adds the product's photos. Run status adds images matched, to review and unmatched.
+- Frontend: a "Needs review" panel (photo, candidates with evidence, Accept or None of these), "Shows:" on each image in the grid, and a photo strip on the product page.
+- Added during the build: the `only_product` signal. Without it, a code-less photo in a one-product batch (the owner's features side) had no evidence at all and could never be confirmed.
+
+**Labelled sample (2026-11-15):** the owner's four box photos, with real OCR text and real Titan similarities, and one product, `B094YFFSMY`.
+
+| Photo | Decision | Score | Evidence |
+|---|---|---|---|
+| Label | Auto-accepted | 1.00 | Its code is on it |
+| Front | Review | 0.52 | "TYGOT" on it, only product, looks like the label (0.75) |
+| Instructions | Review | 0.45 | "TYGOT" on it, only product |
+| Features side | Review | 0.20 | Only product |
+
+Generated cases in the tests cover lookalike products, conflicting codes, two codes on one photo, near-duplicates and file names.
 
 ---
 

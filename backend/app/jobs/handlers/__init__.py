@@ -1,5 +1,6 @@
 """Job handlers. Only the worker imports this package, so heavy packages stay out of the API."""
 
+import app.jobs.handlers.associate  # noqa: F401
 import app.jobs.handlers.documents  # noqa: F401
 import app.jobs.handlers.extract  # noqa: F401
 import app.jobs.handlers.images  # noqa: F401

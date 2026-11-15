@@ -42,6 +42,7 @@ Provider details were checked on 2026-11-06 and 2026-11-07, and they can change.
 | [D32](#d32-llm-column-mapping-with-remembered-layouts) | Columns mapped by known names, then the LLM, with each supplier's layout remembered | Approved |
 | [D33](#d33-values-from-pdfs-and-photos-must-be-quoted-from-the-page) | Values from PDFs and photos must be quoted from the page; codes on pages make products only without a spreadsheet | Approved |
 | [D34](#d34-image-embeddings-from-titan-on-bedrock) | Image embeddings from Titan Multimodal Embeddings on Bedrock instead of OpenCLIP; near-duplicates need similar embeddings and close colours | Approved |
+| [D35](#d35-image-association-rule-and-review) | Only a photo's own code accepts it; everything else goes to review, and accepted photos are read for values | Approved |
 
 ---
 
@@ -693,4 +694,26 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 - If Bedrock is unavailable, the image isn't embedded and says so; the run carries on.
 - Changing the model means a new `embedding_models` row, and a new table if the dimension changes. Old and new embeddings are never compared.
 - The worker role gains `bedrock:InvokeModel` on Titan.
+
+---
+
+## D35: Image association rule and review
+
+**Status:** Approved by the owner on 2026-11-15 (M5B).
+
+**Decision:** Seven signals score each image against each product: a code in the photo's OCR text, a code in its file name or path, coming from a PDF page about the product, the brand or name in its text, being the batch's only product, being the same picture as an accepted photo, and looking like one. An image is accepted automatically only when a code signal links it to exactly one product. Every other pair scoring at least 0.2 goes to review, with its evidence in words. Accepting a photo, automatically or by review, reads its values for the product with M4's quote check.
+
+**Context:** The project context already required that visual similarity never produce an accepted match. The owner's image-only batch left three box photos without a code, whose details were set aside in M4 for this module.
+
+**Owner's choices (2026-11-15):**
+- Accepted photos are read for values, about $0.0005 each.
+- A near-duplicate of an accepted photo goes to review with that product suggested first, rather than being accepted on looks.
+- Review is a minimal panel on the batch page; the cross-batch queue and editing stay in M9.
+
+**Consequences:**
+- A batch with one product puts every photo in review (the `only_product` signal), so photos with no code can still be confirmed; it never accepts by itself.
+- Accepting one product rejects the image's other candidates, so a photo of two products links to one of them. Linking both is left for M9.
+- Every decision is written to `review_events` with before and after values and the person; the table refuses updates.
+- Values from photos read after review run in a separate `photo_values` run that uses no submission and isn't tied to the batch's status. If another of the owner's runs is active, reading waits, and the review panel offers a button to start it.
+- Reprocessing a failed batch (D31) rebuilds its products, which removes its review decisions. Reprocessing happens only after a platform failure, before review would normally start.
 

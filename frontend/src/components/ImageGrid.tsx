@@ -1,14 +1,33 @@
 "use client";
 
-import type { BatchImage, BatchImageList } from "@/lib/types";
+import type { BatchImage, BatchImageList, ImageMatchList } from "@/lib/types";
 import { useApiResource } from "@/lib/useApiResource";
 
 /**
  * A batch's kept images, with images that show the same picture placed together. A group is
  * shown, not acted on: every image is kept, and matching images to products comes later.
  */
-export function ImageGrid({ batchId }: { batchId: string }) {
+export function ImageGrid({
+  batchId,
+  version,
+}: {
+  batchId: string;
+  version: number;
+}) {
   const images = useApiResource<BatchImageList>(`/batches/${batchId}/images`);
+  // Reloaded after each review decision, through the version in its path.
+  const matches = useApiResource<ImageMatchList>(
+    `/batches/${batchId}/matches?v=${version}`,
+  );
+  const shows = new Map<string, string[]>();
+  for (const match of matches.data?.items ?? []) {
+    if (match.decision === "auto_accepted" || match.decision === "accepted") {
+      shows.set(match.image_id, [
+        ...(shows.get(match.image_id) ?? []),
+        match.product_key,
+      ]);
+    }
+  }
   const items = images.data?.items ?? [];
   if (images.error) {
     return (
@@ -76,6 +95,11 @@ export function ImageGrid({ batchId }: { batchId: string }) {
               {image.duplicate_group_id && !image.is_representative
                 ? ` · same picture as ${image.group_size - 1} other${image.group_size > 2 ? "s" : ""}`
                 : ""}
+            </span>
+            <span className={shows.has(image.id) ? undefined : "muted"}>
+              {shows.has(image.id)
+                ? `Shows: ${shows.get(image.id)!.join(", ")}`
+                : "No product yet"}
             </span>
             {image.skip_message && (
               <span className="error file-reason">{image.skip_message}</span>
