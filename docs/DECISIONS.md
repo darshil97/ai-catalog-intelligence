@@ -714,6 +714,7 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 - A batch with one product puts every photo in review (the `only_product` signal), so photos with no code can still be confirmed; it never accepts by itself.
 - Accepting one product rejects the image's other candidates, so a photo of two products links to one of them. Linking both is left for M9.
 - Every decision is written to `review_events` with before and after values and the person; the table refuses updates.
+- A SKU or model number read from a page or photo is stored only if it looks like a code, because stored codes are matching evidence (added after a logo was stored as a model number in live testing).
 - Values from photos read after review run in a separate `photo_values` run that uses no submission and isn't tied to the batch's status. If another of the owner's runs is active, reading waits, and the review panel offers a button to start it.
 - Reprocessing a failed batch (D31) rebuilds its products, which removes its review decisions. Reprocessing happens only after a platform failure, before review would normally start.
 

@@ -26,6 +26,11 @@ DROP_UNKNOWN_ATTRIBUTE = "unknown_attribute"
 DROP_UNKNOWN_PRODUCT = "unknown_product"
 DROP_PRODUCT_UNCLEAR = "product_unclear"
 DROP_NO_IDENTIFIER = "no_product_code"
+DROP_NOT_A_CODE = "not_a_code"
+
+# A SKU or model number is stored as one of the product's codes, which matching then treats
+# as evidence. So it must look like a code, as for making a product.
+_CODE_RULE_ATTRIBUTES = frozenset({"sku", "model_number"})
 
 _NOT_ALPHANUMERIC = re.compile(r"[\W_]+")
 # A code that makes a product must look like one: a brand or logo read as a SKU must not.
@@ -145,11 +150,21 @@ def _drop(code: str, value: ValueAnswer) -> Dropped:
         "that isn't in your spreadsheet, so it wasn't used.",
         DROP_PRODUCT_UNCLEAR: f'"{value.value}" for {value.attribute} couldn\'t be placed with '
         "one product, because the nearest product code above it is a different one.",
+        DROP_NOT_A_CODE: f'"{value.value}" was given as a {value.attribute.replace("_", " ")}, '
+        "but a code needs a digit and at least four letters and digits, so it wasn't used.",
         DROP_NO_IDENTIFIER: f'"{value.value}" for {value.attribute} belongs to a product with no '
         "usable SKU, model number or barcode on this page, so it wasn't used. A code needs a "
         "digit, and a barcode a valid check digit.",
     }
     return Dropped(code, messages[code], value.attribute, value.value)
+
+
+def _not_a_code(attribute: str, raw_value: str) -> bool:
+    """True if a SKU or model number doesn't look like a code, such as a logo read as one."""
+    if attribute not in _CODE_RULE_ATTRIBUTES:
+        return False
+    identifier = canonicalize(attribute, raw_value)
+    return identifier is None or not can_make_product(attribute, identifier)
 
 
 def check_link(
@@ -188,6 +203,9 @@ def check_link(
         found = locate(text, page, value.quote, value.value)
         if found is None:
             result.dropped.append(_drop(DROP_NOT_ON_PAGE, value))
+            continue
+        if _not_a_code(value.attribute, found.raw_value):
+            result.dropped.append(_drop(DROP_NOT_A_CODE, value))
             continue
         if len(products) > 1 and _nearest_above(found.start, marks) != named:
             result.dropped.append(_drop(DROP_PRODUCT_UNCLEAR, value))
@@ -263,6 +281,9 @@ def check_create(
     )
     for label, key in group_key.items():
         for value, found in groups[label]:
+            if _not_a_code(value.attribute, found.raw_value):
+                result.dropped.append(_drop(DROP_NOT_A_CODE, value))
+                continue
             if len(products) > 1 and _nearest_above(found.start, marks) != key:
                 result.dropped.append(_drop(DROP_PRODUCT_UNCLEAR, value))
                 continue

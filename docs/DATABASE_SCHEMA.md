@@ -7,7 +7,7 @@
 - **Spreadsheet extraction** (`categories`, `attribute_definitions`, `model_runs`, `column_mappings`, `spreadsheet_sheets`, `source_records`, `products`, `attribute_observations`): migration `0005` (M3), applied to `production`, `dev` and `test`.
 - **Document extraction** (`ocr_results`, `document_files`, `products.origin`): migration `0006` (M4), applied to `production` and `test`. `dev` is still at `0005`.
 - **Images** (`embedding_models`, `images`, `image_duplicate_groups`, `image_embeddings`, `pipeline_runs.image_duplicate_groups`): migration `0007` (M5A), applied to `production` and `test`. `dev` is still at `0005`.
-- **Image association and review** (`image_match_candidates`, `product_images`, `review_tasks`, `review_events`, image match counts on `pipeline_runs`): migration `0008` (M5B), applied to `test` only so far.
+- **Image association and review** (`image_match_candidates`, `product_images`, `review_tasks`, `review_events`, image match counts on `pipeline_runs`): migration `0008` (M5B), applied to `production` and `test`. `dev` is still at `0005`.
 
 This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
