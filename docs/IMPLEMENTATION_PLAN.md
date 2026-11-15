@@ -18,7 +18,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | M5B | Image association | M3, M4, M5A | Completed |
 | M6 | Product normalization | M3, M4 | Completed |
 | M7 | Catalog enrichment | M6 | Completed |
-| M8 | Catalog validation | M6, M7 | In Progress |
+| M8 | Catalog validation | M6, M7 | Completed |
 | M9 | Human review | M5B, M8 | Not Started |
 | M10 | Export | M9 | Not Started |
 
@@ -519,7 +519,7 @@ Unrelated and pre-existing: running `test_ingest_kinds` before `test_vision` in 
 
 ## M8 Catalog validation
 
-**Status:** proposal approved by the owner on 2026-11-15 (D38), all nine decisions as recommended. In progress on branch `m8-validation`.
+**Status:** proposal approved by the owner on 2026-11-15 (D38), all nine decisions as recommended. **Completed on 2026-11-15,** by the owner's decision, without a live acceptance run. Shipped as `c21edc4` (CI run 42): migration `0011` applied to `production` (by CI) and `test`, and the worker and API run `c21edc4`. `dev` is still at `0005`.
 
 **Scope**
 - Rule registry and a small configurable marketplace ruleset.
@@ -533,14 +533,28 @@ Unrelated and pre-existing: running `test_ingest_kinds` before `test_vision` in 
 **Tests**
 - Registry contract, each rule, and severity handling.
 
-**Implementation notes (built and checked locally; not yet shipped)**
-- Migration `0011`: `validation_overrides` (warnings set aside) and `batches.target_marketplace` (default `shopify`). Expand-only. Applied to `test` on 2026-11-15 with the owner's OK.
+**Implementation notes**
+- Migration `0011`: `validation_overrides` (warnings set aside) and `batches.target_marketplace` (default `shopify`). Expand-only. Applied to `test` on 2026-11-15 with the owner's OK, then to `production` by CI.
 - `app/validation`: `base.py` (findings, the rule registry), `context.py` (loads one batch in seven queries), `engine.py` (severities from config and the profile, set-asides by fingerprint, errors first), `repository.py` (set aside and undo, each recorded in `review_events`). 17 rules in four modules under `rules/` (attributes, product, text, duplicates) rather than one module per rule.
 - Settings under `validation:` in `config.yaml`; the API refuses to start if they name an unknown rule or attribute, or leave a rule without a default severity. Marketplace numbers are marked unverified (D38, decision 8).
 - API: `GET /batches/{id}/validation`, `PUT /batches/{id}/validation/profile` (in place of the proposed `PATCH /batches/{id}`, which requires a name), `POST` and `DELETE /products/{id}/validation/set-aside`; `GET /products/{id}` adds `validation`.
 - Frontend: a "Checks" panel on the batch page (marketplace, "N of M ready", each product's summary) and a section on the product page (issues by severity, where to fix them, Set aside with a reason, Undo).
 
 **Tests:** 33 fast tests in `test_validation.py` (registry and settings, every rule, every profile, duplicates and variants, set-asides and fingerprints, a broken rule) and 5 database tests in `test_validation_worker.py` on Neon `test` (checks and profiles end to end, current after a change, set aside until it changes with undo and audit, cross-user, signed-out and waitlisted access, an empty batch). All pass.
+
+**Live acceptance:** not run. Suggested check when convenient: process `acme-price-list.csv`, open the Checks panel, switch to Amazon India, and set a warning aside and undo it on a product page.
+
+---
+
+## UI redesign (between M8 and M9)
+
+**Status:** owner's request on 2026-11-15, before M9. Design chosen from options in `ui-options/` (D39). Built on branch `ui-redesign`; not yet shipped.
+
+- **Design system:** Bazaar · Indigo tokens, Fraunces and DM Sans, cards, badges, tabs, stepper and stats in `globals.css`; dark mode follows the system.
+- **New pages:** a landing page (what it does, an example of a traced value, the eight pipeline steps, six features, sign-in) and `/how-it-works` (six steps with tips, and the preview limits). Shared text in `src/lib/content.ts`.
+- **Shell:** a header with pill navigation (Suppliers, How it works) and the account once signed in, a Sign in button when not, and a footer on every page.
+- **App pages:** suppliers as cards; a supplier's batches with status badges; a batch page with breadcrumb, progress steps, a Files card, and results in tabs; a product page in two columns of cards.
+- **Checked:** type check, lint and production build; the landing and guide pages in the browser at desktop and phone widths, light and dark. Signed-in pages weren't checked in a browser, because they need a running API and a sign-in.
 
 ---
 

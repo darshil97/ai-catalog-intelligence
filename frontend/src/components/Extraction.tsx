@@ -21,6 +21,8 @@ import type {
 } from "@/lib/types";
 import { useApiResource } from "@/lib/useApiResource";
 
+type Tab = "products" | "review" | "copy" | "checks" | "photos" | "sources";
+
 const MAPPING_TEXT: Record<Sheet["mapping_source"], string> = {
   none: "",
   known_names: "Columns recognised by name.",
@@ -45,6 +47,7 @@ export function Extraction({
 }) {
   const products = useApiResource<ProductList>(`/batches/${batchId}/products`);
   const [version, setVersion] = useState(0);
+  const [tab, setTab] = useState<Tab>("products");
   const variants = useApiResource<VariantList>(`/batches/${batchId}/variants`);
   const sheets = useApiResource<SheetList>(`/batches/${batchId}/sheets`);
   const documents = useApiResource<DocumentList>(
@@ -56,7 +59,7 @@ export function Extraction({
 
   if (nothingToRead) {
     return (
-      <section className="stack">
+      <section className="section">
         <h2>Products</h2>
         <p className="muted">
           This batch has no spreadsheets, PDFs or photos with text, so no
@@ -66,115 +69,170 @@ export function Extraction({
     );
   }
 
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "products", label: "Products" },
+    { id: "review", label: "Review" },
+    { id: "copy", label: "Copy" },
+    { id: "checks", label: "Checks" },
+    { id: "photos", label: "Photos" },
+    { id: "sources", label: "Sources" },
+  ];
+
   return (
     <>
-      <section className="stack">
-        <h2>Products</h2>
-        <ProductSummaryText run={run} />
-        {products.error && (
-          <p className="error" role="alert">
-            {products.error.message}
-          </p>
-        )}
-        {products.data && products.data.items.length > 0 && (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th scope="col">#</th>
-                  <th scope="col">Product</th>
-                  <th scope="col">Name</th>
-                  <th scope="col">Values</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.data.items.map((product) => (
-                  <tr key={product.id}>
-                    <td>{product.source_order}</td>
-                    <td>
-                      <Link href={`/products/${product.id}`}>
-                        {product.product_key}
-                      </Link>
-                      {product.identifier_flags.map((flag) => (
-                        <p key={flag} className="error file-reason">
-                          {FLAG_TEXT[flag] ?? flag}
-                        </p>
-                      ))}
-                    </td>
-                    <td>{product.name ?? <span className="muted">—</span>}</td>
-                    <td>{product.observation_count}</td>
-                  </tr>
+      <div className="tabs" role="tablist" aria-label="Batch results">
+        {tabs.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === item.id}
+            onClick={() => setTab(item.id)}
+          >
+            {item.label}
+            {item.id === "sources" && rowNotes.length > 0 && (
+              <span className="count">{rowNotes.length}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {tab === "products" && (
+        <>
+          <section className="section">
+            <h2>Products</h2>
+            <ProductSummaryText run={run} />
+            {products.error && (
+              <p className="error" role="alert">
+                {products.error.message}
+              </p>
+            )}
+            {products.data && products.data.items.length > 0 && (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th scope="col">#</th>
+                      <th scope="col">Product</th>
+                      <th scope="col">Name</th>
+                      <th scope="col">Values</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.data.items.map((product) => (
+                      <tr key={product.id}>
+                        <td>{product.source_order}</td>
+                        <td>
+                          <Link href={`/products/${product.id}`}>
+                            {product.product_key}
+                          </Link>
+                          {product.identifier_flags.map((flag) => (
+                            <p key={flag} className="error file-reason">
+                              {FLAG_TEXT[flag] ?? flag}
+                            </p>
+                          ))}
+                        </td>
+                        <td>
+                          {product.name ?? <span className="muted">—</span>}
+                        </td>
+                        <td>{product.observation_count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {(variants.data?.items.length ?? 0) > 0 && (
+            <section className="section">
+              <h2>Possible variants</h2>
+              <p className="muted">
+                These look like versions of one product. They stay separate:
+                nothing is merged.
+              </p>
+              <ul className="list">
+                {(variants.data?.items ?? []).map((pair) => (
+                  <li key={pair.id}>
+                    <span>
+                      {pair.product_a_key} and {pair.product_b_key}
+                    </span>
+                    <span className="muted">
+                      {pair.reasons.map((reason) => reason.text).join(" ")}
+                    </span>
+                  </li>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {(sheets.data?.items.length ?? 0) > 0 && (
-        <section className="stack">
-          <h2>Sheets</h2>
-          {(sheets.data?.items ?? []).map((sheet) => (
-            <SheetCard key={sheet.id} sheet={sheet} />
-          ))}
-        </section>
-      )}
-      {sheets.error && (
-        <p className="error" role="alert">
-          {sheets.error.message}
-        </p>
+              </ul>
+            </section>
+          )}
+        </>
       )}
 
-      {(documents.data?.items.length ?? 0) > 0 && (
-        <section className="stack">
-          <h2>PDFs and photos</h2>
-          <ul className="list">
-            {(documents.data?.items ?? []).map((document) => (
-              <DocumentRow key={document.source_file_id} document={document} />
-            ))}
-          </ul>
-        </section>
-      )}
-      {documents.error && (
-        <p className="error" role="alert">
-          {documents.error.message}
-        </p>
-      )}
-
-      <ReviewPanel
-        batchId={batchId}
-        onDecided={() => {
-          setVersion((current) => current + 1);
-          products.reload();
-        }}
-      />
-      <ImageGrid batchId={batchId} version={version} />
-      <EnrichmentPanel batchId={batchId} version={version} />
-      <ChecksPanel batchId={batchId} version={version} />
-
-      {(variants.data?.items.length ?? 0) > 0 && (
-        <section className="stack">
-          <h2>Possible variants</h2>
+      {tab === "review" && (
+        <>
           <p className="muted">
-            These look like versions of one product. They stay separate: nothing
-            is merged.
+            Photos to confirm, values where sources disagree, and categories the
+            AI wasn&apos;t sure of. When nothing is listed, nothing is waiting
+            for you.
           </p>
-          <ul className="list">
-            {(variants.data?.items ?? []).map((pair) => (
-              <li key={pair.id}>
-                <span>
-                  {pair.product_a_key} and {pair.product_b_key}
-                </span>
-                <span className="muted">
-                  {pair.reasons.map((reason) => reason.text).join(" ")}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+          <ReviewPanel
+            batchId={batchId}
+            onDecided={() => {
+              setVersion((current) => current + 1);
+              products.reload();
+            }}
+          />
+        </>
       )}
+      {tab === "copy" && (
+        <EnrichmentPanel batchId={batchId} version={version} />
+      )}
+      {tab === "checks" && <ChecksPanel batchId={batchId} version={version} />}
+      {tab === "photos" && <ImageGrid batchId={batchId} version={version} />}
+      {tab === "sources" && (
+        <>
+          {(sheets.data?.items.length ?? 0) > 0 && (
+            <section className="section">
+              <h2>Sheets</h2>
+              {(sheets.data?.items ?? []).map((sheet) => (
+                <SheetCard key={sheet.id} sheet={sheet} />
+              ))}
+            </section>
+          )}
+          {sheets.error && (
+            <p className="error" role="alert">
+              {sheets.error.message}
+            </p>
+          )}
 
-      {rowNotes.length > 0 && <RowNotes notes={rowNotes} />}
+          {(documents.data?.items.length ?? 0) > 0 && (
+            <section className="section">
+              <h2>PDFs and photos</h2>
+              <ul className="list">
+                {(documents.data?.items ?? []).map((document) => (
+                  <DocumentRow
+                    key={document.source_file_id}
+                    document={document}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+          {documents.error && (
+            <p className="error" role="alert">
+              {documents.error.message}
+            </p>
+          )}
+
+          {rowNotes.length > 0 && <RowNotes notes={rowNotes} />}
+          {(sheets.data?.items.length ?? 0) === 0 &&
+            (documents.data?.items.length ?? 0) === 0 && (
+              <p className="muted">
+                No spreadsheets, PDFs or photos were read.
+              </p>
+            )}
+        </>
+      )}
     </>
   );
 }
@@ -323,7 +381,7 @@ function DocumentRow({ document }: { document: DocumentFile }) {
 
 function RowNotes({ notes }: { notes: RunError[] }) {
   return (
-    <section className="stack">
+    <section className="section">
       <h2>Rows, pages and values that weren&apos;t used</h2>
       <ul className="list">
         {notes.map((note, index) => (

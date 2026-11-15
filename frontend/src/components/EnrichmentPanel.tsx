@@ -84,7 +84,7 @@ export function EnrichmentPanel({
 
   const paused = run?.status === "paused";
   return (
-    <section className="stack" aria-live="polite">
+    <section className="section" aria-live="polite">
       <h2>Generated content</h2>
       <p className="muted">
         Titles, descriptions and bullets written only from settled values. Every

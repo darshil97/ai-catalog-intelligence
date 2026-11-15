@@ -59,7 +59,7 @@ export function ImageGrid({
   ).size;
 
   return (
-    <section className="stack">
+    <section className="section">
       <h2>Images</h2>
       <p className="muted">
         {items.length} images.

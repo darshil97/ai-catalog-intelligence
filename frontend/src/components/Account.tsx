@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
 import { ApiError, api, clearApiToken } from "@/lib/api";
@@ -63,7 +63,10 @@ export function useAccount(): AccountState {
   return useContext(AccountContext);
 }
 
-export function SignInButton() {
+export function SignInButton({ label = "Sign in with Google", large = false }: {
+  label?: string;
+  large?: boolean;
+}) {
   const [pending, setPending] = useState(false);
   const signIn = useCallback(async () => {
     setPending(true);
@@ -74,8 +77,16 @@ export function SignInButton() {
     }
   }, []);
   return (
-    <button type="button" className="button primary" onClick={signIn} disabled={pending}>
-      {pending ? "Redirecting to Google…" : "Sign in with Google"}
+    <button
+      type="button"
+      className={`button primary${large ? " large" : ""}`}
+      onClick={signIn}
+      disabled={pending}
+    >
+      <span className="google" aria-hidden="true">
+        G
+      </span>
+      {pending ? "Redirecting to Google…" : label}
     </button>
   );
 }
@@ -94,23 +105,71 @@ export function SignOutButton() {
   );
 }
 
-/** Top bar with the signed-in email. */
+const APP_LINKS = [
+  { href: "/suppliers", label: "Suppliers", match: ["/suppliers", "/batches", "/products"] },
+  { href: "/how-it-works", label: "How it works", match: ["/how-it-works"] },
+];
+
+/** Top bar: the brand, the app's pages once signed in, and the account. */
 export function AppHeader() {
   const account = useAccount();
+  const pathname = usePathname();
   const email =
     account.state === "active" || account.state === "waitlisted" ? account.me.email : null;
+  const active = account.state === "active";
   return (
     <header className="app-header">
       <Link href="/" className="brand">
-        AI Catalog Intelligence
+        <span className="logo" aria-hidden="true">
+          CI
+        </span>
+        Catalog Intelligence
       </Link>
-      {email && (
+      {active ? (
+        <nav className="nav-pill" aria-label="Main">
+          {APP_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={link.match.some((m) => pathname.startsWith(m)) ? "active" : undefined}
+              aria-current={link.match.some((m) => pathname.startsWith(m)) ? "page" : undefined}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+      ) : (
+        <nav className="account" aria-label="Main">
+          <Link href="/how-it-works" className="muted">
+            How it works
+          </Link>
+        </nav>
+      )}
+      {email ? (
         <span className="account">
-          <span className="muted">{email}</span>
+          <span className="avatar" aria-hidden="true">
+            {email.slice(0, 2)}
+          </span>
+          <span className="muted email">{email}</span>
           <SignOutButton />
         </span>
+      ) : (
+        account.state === "signed_out" && <SignInButton label="Sign in" />
       )}
     </header>
+  );
+}
+
+/** Footer on every page. */
+export function SiteFooter() {
+  return (
+    <footer className="site-foot">
+      <span>Catalog Intelligence · a free preview · Home &amp; Kitchen demo category</span>
+      <span className="row">
+        <Link href="/how-it-works">How it works</Link>
+        <Link href="/">Home</Link>
+      </span>
+    </footer>
   );
 }
 
@@ -124,9 +183,12 @@ export function RequireActive({ children }: { children: ReactNode }) {
       );
     case "signed_out":
       return (
-        <div className="stack">
-          <p>Sign in to manage your suppliers and batches.</p>
-          <SignInButton />
+        <div className="notice tinted">
+          <h2>Sign in to continue</h2>
+          <p className="muted">Sign in with Google to manage your suppliers and batches.</p>
+          <div>
+            <SignInButton />
+          </div>
         </div>
       );
     case "waitlisted":
@@ -145,13 +207,15 @@ export function RequireActive({ children }: { children: ReactNode }) {
 
 export function Waitlisted() {
   return (
-    <div className="notice" role="status">
+    <div className="notice tinted" role="status">
       <h2>You&apos;re on the waitlist</h2>
       <p>
-        AI Catalog Intelligence is in a closed preview. We&apos;ll let you in when a place opens up.
+        Catalog Intelligence is in a small preview. We&apos;ll let you in when a place opens up.
         You don&apos;t need to do anything else.
       </p>
-      <SignOutButton />
+      <div>
+        <SignOutButton />
+      </div>
     </div>
   );
 }

@@ -91,7 +91,7 @@ export function ReviewPanel({
   }
 
   return (
-    <section className="stack">
+    <section className="section">
       <h2>Needs review</h2>
       <p className="muted">
         {open.length

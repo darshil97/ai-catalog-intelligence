@@ -30,3 +30,6 @@ next-env.d.ts
 
 # Sample supplier files for trying the app by hand
 samples/
+
+# UI design options to compare by hand (not part of the app)
+ui-options/
