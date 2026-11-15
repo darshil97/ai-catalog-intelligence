@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ImageGrid } from "@/components/ImageGrid";
+import { ChecksPanel } from "@/components/ChecksPanel";
 import { EnrichmentPanel } from "@/components/EnrichmentPanel";
 import { ReviewPanel } from "@/components/ReviewPanel";
 import { describeLocation, FLAG_TEXT } from "@/lib/location";
@@ -149,6 +150,7 @@ export function Extraction({
       />
       <ImageGrid batchId={batchId} version={version} />
       <EnrichmentPanel batchId={batchId} version={version} />
+      <ChecksPanel batchId={batchId} version={version} />
 
       {(variants.data?.items.length ?? 0) > 0 && (
         <section className="stack">

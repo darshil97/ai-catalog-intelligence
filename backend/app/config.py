@@ -431,3 +431,52 @@ def get_enrichment_config() -> dict[str, Any]:
         **{key: int(section[key]) for key in ints},
         **{key: [str(item).lower() for item in section[key]] for key in lists},
     }
+
+
+_SEVERITIES = ("error", "warning", "info")
+
+
+def get_validation_config() -> dict[str, Any]:
+    """Return catalog-check settings (D38).
+
+    Keys: rules_version, default_profile, severities (rule to severity), ceilings (unit
+    family to a standard-unit number), profiles (code to {name, required (attribute codes),
+    title_max_chars, bullets_min, severities}).
+
+    Raises:
+        ValueError: if a severity isn't error, warning or info, a required attribute isn't a
+            known attribute, or the default profile doesn't exist.
+    """
+    section = get_config()["validation"]
+    attributes = set(get_config()["extraction"]["header_names"])
+
+    def severities(raw: dict[str, Any] | None, where: str) -> dict[str, str]:
+        out = {str(rule): str(level) for rule, level in (raw or {}).items()}
+        bad = {rule: level for rule, level in out.items() if level not in _SEVERITIES}
+        if bad:
+            raise ValueError(f"validation {where}: unknown severities {bad}")
+        return out
+
+    profiles = {}
+    for code, profile in section["profiles"].items():
+        required = [str(item) for item in profile["required"]]
+        unknown = [item for item in required if item not in attributes]
+        if unknown:
+            raise ValueError(f"validation profile {code!r}: unknown attributes {unknown}")
+        profiles[str(code)] = {
+            "name": str(profile["name"]),
+            "required": required,
+            "title_max_chars": int(profile["title_max_chars"]),
+            "bullets_min": int(profile["bullets_min"]),
+            "severities": severities(profile.get("severities"), f"profile {code!r}"),
+        }
+    default = str(section["default_profile"])
+    if default not in profiles:
+        raise ValueError(f"validation default_profile {default!r} isn't a profile")
+    return {
+        "rules_version": str(section["rules_version"]),
+        "default_profile": default,
+        "severities": severities(section["severities"], "severities"),
+        "ceilings": {str(k): float(v) for k, v in section["ceilings"].items()},
+        "profiles": profiles,
+    }

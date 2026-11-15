@@ -347,6 +347,54 @@ enrichment:
                    "cure", "cures", "heal", "heals", "healthy", "healthier", "detox",
                    "doctor recommended", "clinically"]
 
+# Catalog checks (D38): deterministic rules, run whenever a batch or product is read. Errors
+# block approval (M9) and can't be set aside; warnings can, with a reason; info never blocks.
+validation:
+  rules_version: checks@1
+  default_profile: shopify
+  # Default severity per rule. A profile can override any of them.
+  severities:
+    required_attribute: error
+    attribute_conflict: warning
+    attribute_unclear: info
+    category: error
+    identifier: error
+    price_positive: error
+    currency_assumed: warning
+    measurements: warning
+    generated_text: warning
+    title_length: error
+    bullets: warning
+    photo: warning
+    open_review: warning
+    duplicate_gtin: error
+    duplicate_model_number: warning
+    duplicate_name: warning
+    duplicate_photo: warning
+  # Above these, a settled measurement is probably a unit mistake (standard units: g, ml, mm).
+  ceilings: { mass: 1000000, volume: 1000000, length: 5000 }
+  # Marketplace numbers are from memory and UNVERIFIED against current Shopify and Amazon
+  # documentation (D38, decision 8). Check them before relying on a profile.
+  profiles:
+    generic:
+      name: Generic catalog
+      required: [product_name, brand]
+      title_max_chars: 200
+      bullets_min: 0
+      severities: {}
+    shopify:
+      name: Shopify
+      required: [product_name, price]
+      title_max_chars: 255
+      bullets_min: 0
+      severities: { photo: warning }
+    amazon_in:
+      name: Amazon India
+      required: [product_name, brand, gtin, price]
+      title_max_chars: 200
+      bullets_min: 3
+      severities: { photo: error }
+
 # Image embeddings come from Bedrock, from the worker only (D34). Changing the model means a new
 # embedding_models row, and a new table if the dimension changes.
 embeddings:

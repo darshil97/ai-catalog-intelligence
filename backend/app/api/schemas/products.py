@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.api.schemas.enrichment import GeneratedContent
+from app.api.schemas.validation import ProductValidation
 
 
 class Product(BaseModel):
@@ -87,6 +88,9 @@ class ProductDetail(Product):
     category: "ProductCategory | None" = Field(None, description="Its category.")
     generated_content: "GeneratedContent | None" = Field(
         None, description="Its generated title, description and bullets, with their citations."
+    )
+    validation: "ProductValidation | None" = Field(
+        None, description="Its checks under the batch's marketplace profile."
     )
     images: list["ProductImage"] = Field(
         default_factory=list, description="Photos accepted as showing it, in file order."
