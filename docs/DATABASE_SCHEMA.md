@@ -8,6 +8,7 @@
 - **Document extraction** (`ocr_results`, `document_files`, `products.origin`): migration `0006` (M4), applied to `production` and `test`. `dev` is still at `0005`.
 - **Images** (`embedding_models`, `images`, `image_duplicate_groups`, `image_embeddings`, `pipeline_runs.image_duplicate_groups`): migration `0007` (M5A), applied to `production` and `test`. `dev` is still at `0005`.
 - **Image association and review** (`image_match_candidates`, `product_images`, `review_tasks`, `review_events`, image match counts on `pipeline_runs`): migration `0008` (M5B), applied to `production` and `test`. `dev` is still at `0005`.
+- **Normalization** (`normalized_values`, `product_attributes`, `variant_candidates`, seeded `categories`, category columns on `products`, two more review kinds): migration `0009` (M6), applied to `test` only so far.
 
 This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
@@ -201,7 +202,9 @@ These make the schema category-independent. Home & Kitchen is seed data, not cod
 | `rules` | JSONB | Required rules, allowed values. `description` tells the LLM what belongs in the attribute. |
 | `version` | INTEGER NOT NULL | |
 
-**As built (M3):** also `name` (shown to people) and `created_at`. Seventeen attributes are seeded by the migration. The column names that map to each one live in `config.yaml` (`extraction.header_names`), so they can grow without a migration. `categories` is empty until M6.
+**As built (M3):** also `name` (shown to people) and `created_at`. Seventeen attributes are seeded by the migration. The column names that map to each one live in `config.yaml` (`extraction.header_names`), so they can grow without a migration. `categories` is seeded by M6.
+
+**M6:** `categories` gains `position`, and migration `0009` seeds a Home & Kitchen tree of 29 categories, with `other` for anything outside it. `products` gains `category_state` (`none`, `assigned`, `needs_review`), `category_source` (`llm`, `person`), `suggested_category_id`, `category_confidence` and `category_reason`. A category a person chooses is never overwritten.
 
 ### `products`
 
@@ -266,6 +269,8 @@ Three layers keep the original, the cleaned value and the chosen value separate:
 
 **Constraint:** `UNIQUE(observation_id, rule_version)`.
 
+**As built (M6):** also `product_id`, `attribute_id` (usually the observation's; a combined size gives length, width and height), `comparable` (what agreement compares), `display` (what people see, such as "1.5 L"), `flags` JSONB (how it was read, and why it can't be relied on, such as `unit_missing` or `range`) and `source_rank` (1 spreadsheet, 2 PDF text, 3 photo). `unit` is g, ml or mm, or a currency code for a price. The constraint is `UNIQUE(observation_id, attribute_id, rule_version)`.
+
 ### `product_attributes`
 
 | Column | Type | Notes |
@@ -281,6 +286,8 @@ Three layers keep the original, the cleaned value and the chosen value separate:
 **Constraint:** `UNIQUE(product_id, attribute_id)`.
 
 **Rule:** different normalized values for one attribute set `state = conflict` and create a review task. Nothing resolves a conflict automatically.
+
+**As built (M6):** `state` also allows `unclear` (values exist, but none can be relied on). Also `decided_by` (`system`, or the person) and `decided_at`. A row a person decided is never rewritten by normalizing again.
 
 ---
 
@@ -404,11 +411,15 @@ One row per PDF or image read by the `documents` stage (M4): `source_file_id` PK
 
 **Constraint:** `CHECK (product_a_id < product_b_id)` and `UNIQUE(product_a_id, product_b_id)`. Flagged only, never merged.
 
+**As built (M6):** also `batch_id`. `reason` is a list of the rules that flagged the pair (`same_name_but_colour_or_size`, `same_base_code`, and `similar_photos` as support), each with words for people. Flagged pairs are rebuilt each time a batch is normalized; confirmed or dismissed ones are kept.
+
 ### `review_tasks`
 
 `id`, `owner_user_id` FK, `product_id` FK nullable, `kind` (`image_match`, `attribute_conflict`, `category`, `llm_output`, ...), `subject_ref` JSONB, `status` (`open`, `resolved`), `created_at`, `resolved_at`.
 
 **As built (M5B):** also `batch_id`. Only `image_match` exists so far, with `subject_ref` `{"image_id"}`, and one task per image (unique on the image).
+
+**M6:** `attribute_conflict` (`subject_ref` `{"product_id", "attribute_id"}`, one per product attribute) and `category` (`{"product_id"}`, one per product). A conflict task closes by itself if the sources come to agree, and opens again if they disagree again.
 
 **Index:** partial `(owner_user_id, created_at) WHERE status = 'open'`.
 

@@ -3,7 +3,9 @@
 import { useState } from "react";
 
 import { ApiError, api } from "@/lib/api";
+import { describeLocation, VALUE_FLAG_TEXT } from "@/lib/location";
 import type {
+  CategoryNode,
   DecisionResult,
   PhotoValuesStatus,
   ReviewTask,
@@ -32,6 +34,7 @@ export function ReviewPanel({
   const tasks = useApiResource<ReviewTaskList>(
     `/batches/${batchId}/review-tasks`,
   );
+  const categories = useApiResource<{ items: CategoryNode[] }>("/categories");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const items = tasks.data?.items ?? [];
@@ -40,20 +43,13 @@ export function ReviewPanel({
 
   if (items.length === 0 && pending === 0) return null;
 
-  async function decide(task: ReviewTask, productId: string | null) {
+  async function send(task: ReviewTask, body: Record<string, unknown>) {
     setError(null);
     setMessage(null);
     try {
       const result = await api<DecisionResult>(
         `/review-tasks/${task.id}/decision`,
-        {
-          method: "POST",
-          body: JSON.stringify(
-            productId
-              ? { decision: "accept", product_id: productId }
-              : { decision: "reject" },
-          ),
-        },
+        { method: "POST", body: JSON.stringify(body) },
       );
       setMessage(PHOTO_VALUES_TEXT[result.photo_values] || null);
     } catch (caught) {
@@ -64,6 +60,15 @@ export function ReviewPanel({
       tasks.reload();
       onDecided();
     }
+  }
+
+  async function decide(task: ReviewTask, productId: string | null) {
+    await send(
+      task,
+      productId
+        ? { decision: "accept", product_id: productId }
+        : { decision: "reject" },
+    );
   }
 
   async function readValues() {
@@ -90,8 +95,8 @@ export function ReviewPanel({
       <h2>Needs review</h2>
       <p className="muted">
         {open.length
-          ? `${open.length} ${open.length === 1 ? "photo needs" : "photos need"} you to confirm which product ${open.length === 1 ? "it shows" : "they show"}. A photo is only linked automatically when its own code is found on it.`
-          : "Every photo has been decided."}
+          ? `${open.length} ${open.length === 1 ? "decision is" : "decisions are"} waiting for you: which product a photo shows, which value is right when sources disagree, or a product's category. Nothing here is decided automatically.`
+          : "Everything has been decided."}
       </p>
       {message && <p className="notice">{message}</p>}
       {error && (
@@ -109,9 +114,20 @@ export function ReviewPanel({
         </p>
       )}
       <ul className="review-list">
-        {open.map((task) => (
-          <ReviewItem key={task.id} task={task} onDecide={decide} />
-        ))}
+        {open.map((task) =>
+          task.kind === "image_match" ? (
+            <ReviewItem key={task.id} task={task} onDecide={decide} />
+          ) : task.kind === "attribute_conflict" ? (
+            <ConflictItem key={task.id} task={task} onSend={send} />
+          ) : (
+            <CategoryItem
+              key={task.id}
+              task={task}
+              categories={categories.data?.items ?? []}
+              onSend={send}
+            />
+          ),
+        )}
       </ul>
     </section>
   );
@@ -141,7 +157,7 @@ function ReviewItem({
       {task.thumbnail_url ? (
         // Signed links to private storage: next/image can't optimise them.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={task.thumbnail_url} alt={task.image_name} />
+        <img src={task.thumbnail_url} alt={task.image_name ?? "Photo"} />
       ) : (
         <span className="thumb-missing">No preview</span>
       )}
@@ -190,6 +206,158 @@ function ReviewItem({
             onClick={() => act(null)}
           >
             None of these
+          </button>
+        </span>
+      </div>
+    </li>
+  );
+}
+
+type Send = (task: ReviewTask, body: Record<string, unknown>) => Promise<void>;
+
+function ConflictItem({ task, onSend }: { task: ReviewTask; onSend: Send }) {
+  const [chosen, setChosen] = useState(task.values[0]?.id ?? "own");
+  const [own, setOwn] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      await onSend(
+        task,
+        chosen === "own"
+          ? { decision: "set", value: own }
+          : { decision: "choose", value_id: chosen },
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className="review-item single">
+      <div className="stack">
+        <strong>
+          {task.product_key}: {task.attribute_name}
+        </strong>
+        <span className="muted">The sources disagree. Which is right?</span>
+        <fieldset className="candidates">
+          <legend className="visually-hidden">
+            {task.attribute_name} for {task.product_key}
+          </legend>
+          {task.values.map((value) => (
+            <label key={value.id} className="candidate">
+              <input
+                type="radio"
+                name={`task-${task.id}`}
+                checked={chosen === value.id}
+                onChange={() => setChosen(value.id)}
+              />
+              <span>
+                <strong>{value.display}</strong>{" "}
+                <span className="muted">
+                  &ldquo;{value.raw_value}&rdquo; in {value.source_file_name}
+                  {describeLocation(value.location)
+                    ? `, ${describeLocation(value.location)}`
+                    : ""}
+                  {value.flags.length > 0 &&
+                    ` (${value.flags.map((f) => VALUE_FLAG_TEXT[f] ?? f).join(", ")})`}
+                </span>
+              </span>
+            </label>
+          ))}
+          <label className="candidate">
+            <input
+              type="radio"
+              name={`task-${task.id}`}
+              checked={chosen === "own"}
+              onChange={() => setChosen("own")}
+            />
+            <span className="stack">
+              <span>Something else:</span>
+              <input
+                className="input"
+                value={own}
+                onChange={(event) => {
+                  setOwn(event.target.value);
+                  setChosen("own");
+                }}
+                placeholder="Type the right value"
+              />
+            </span>
+          </label>
+        </fieldset>
+        <span className="actions">
+          <button
+            type="button"
+            className="button primary"
+            disabled={busy || (chosen === "own" && !own.trim())}
+            onClick={save}
+          >
+            Save
+          </button>
+        </span>
+      </div>
+    </li>
+  );
+}
+
+function CategoryItem({
+  task,
+  categories,
+  onSend,
+}: {
+  task: ReviewTask;
+  categories: CategoryNode[];
+  onSend: Send;
+}) {
+  const [chosen, setChosen] = useState(task.suggested_category_id ?? "");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      await onSend(task, { decision: "choose", category_id: chosen });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className="review-item single">
+      <div className="stack">
+        <strong>{task.product_key}: category</strong>
+        <span className="muted">
+          {task.suggested_category_name
+            ? `Suggested: ${task.suggested_category_name}, but not with enough certainty.`
+            : "No category was suggested."}
+          {task.category_reason ? ` ${task.category_reason}` : ""}
+        </span>
+        <label className="stack">
+          <span className="visually-hidden">Category</span>
+          <select
+            className="input"
+            value={chosen}
+            onChange={(event) => setChosen(event.target.value)}
+          >
+            <option value="" disabled>
+              Choose a category
+            </option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.path}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="actions">
+          <button
+            type="button"
+            className="button primary"
+            disabled={busy || !chosen}
+            onClick={save}
+          >
+            Save
           </button>
         </span>
       </div>

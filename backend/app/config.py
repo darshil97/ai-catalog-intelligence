@@ -359,3 +359,40 @@ def get_matching_config() -> dict[str, Any]:
         "review_threshold": float(section["review_threshold"]),
         "max_candidates_per_image": int(section["max_candidates_per_image"]),
     }
+
+
+def get_normalization_config() -> dict[str, Any]:
+    """Return normalization settings.
+
+    Keys: rule_version, default_currency, dollar_currency, agreement_tolerance (float),
+    source_ranks (extractor to int), standard_units (family to unit), units (family to
+    {alias: factor}), currencies (alias to code), approximate_words (list), category
+    ({enabled, min_confidence}), variants ({colour_words, size_words, code_suffix_max_chars,
+    image_support_min_similarity}).
+    """
+    section = get_config()["normalization"]
+    variants = dict(section["variants"])
+    return {
+        "rule_version": str(section["rule_version"]),
+        "default_currency": str(section["default_currency"]),
+        "dollar_currency": str(section["dollar_currency"]),
+        "agreement_tolerance": float(section["agreement_tolerance"]),
+        "source_ranks": {str(k): int(v) for k, v in section["source_ranks"].items()},
+        "standard_units": {str(k): str(v) for k, v in section["standard_units"].items()},
+        "units": {
+            str(family): {str(alias).lower(): float(factor) for alias, factor in aliases.items()}
+            for family, aliases in section["units"].items()
+        },
+        "currencies": {str(k).lower(): str(v) for k, v in section["currencies"].items()},
+        "approximate_words": [str(word).lower() for word in section["approximate_words"]],
+        "category": {
+            "enabled": bool(section["category"]["enabled"]),
+            "min_confidence": float(section["category"]["min_confidence"]),
+        },
+        "variants": {
+            "colour_words": [str(w).lower() for w in variants["colour_words"]],
+            "size_words": [str(w).lower() for w in variants["size_words"]],
+            "code_suffix_max_chars": int(variants["code_suffix_max_chars"]),
+            "image_support_min_similarity": float(variants["image_support_min_similarity"]),
+        },
+    }

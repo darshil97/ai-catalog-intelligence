@@ -16,7 +16,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | M4 | Document and image text extraction | M3 | Completed |
 | M5A | Image processing | M2, M0B | Completed |
 | M5B | Image association | M3, M4, M5A | Completed |
-| M6 | Product normalization | M3, M4 | Not Started |
+| M6 | Product normalization | M3, M4 | In Progress |
 | M7 | Catalog enrichment | M6 | Not Started |
 | M8 | Catalog validation | M6, M7 | Not Started |
 | M9 | Human review | M5B, M8 | Not Started |
@@ -445,6 +445,8 @@ Generated cases in the tests cover lookalike products, conflicting codes, two co
 
 ## M6 Product normalization
 
+**Status:** proposal approved by the owner on 2026-11-15 (D36). Built and checked locally; not yet shipped. Migration `0009` is not yet applied to `production`.
+
 **Scope**
 - Attribute mapping onto definitions.
 - Deterministic unit conversion.
@@ -460,6 +462,17 @@ Generated cases in the tests cover lookalike products, conflicting codes, two co
 - Unit edge cases, such as mixed and missing units.
 - Ambiguous categories go to review.
 - The rule version is recorded on each normalized value.
+
+**Approved decisions (2026-11-15):** India defaults (g, ml, mm with lengths shown in cm; INR when no currency is given and a lone "$" as USD, both marked assumed; lakh grouping); combined sizes split into length, width and height; numbers agree within 1%; an LLM chooses a category from a fixed Home & Kitchen tree, with "other" or confidence below 0.7 going to review; variants flagged by name and code rules, with photo similarity as support only (D36). Both earlier production batches were deleted first, at the owner's request.
+
+**Implementation notes**
+- Migration `0009`: `normalized_values` (one or more per observation, under a rule version), `product_attributes` (the value each product shows and its state), a seeded category tree of 29 categories with `position`, category columns on `products` (state, source, suggestion, confidence, reason), `variant_candidates`, and the `attribute_conflict` and `category` review kinds, one task per product attribute and per product's category. Expand-only.
+- The `ingest` and `photo_values` pipelines end with a `normalize` stage. `normalize_batch` stores standard values, chooses what each product shows, opens or closes conflict tasks and flags variants; then one `categorize_product` job per product a person hasn't categorized. A person's decision always stands, and every job can run again safely.
+- `app/normalization`: unit and number rules (`values.py`), choosing the shown value (`select.py`) and variant rules (`variants.py`). Units, aliases, currencies, tolerance and source ranks live in `config.yaml` (`normalization`).
+- States: `verified` (every reliable source agrees; the best source is shown: spreadsheet, then PDF text, then photos), `conflict` (they disagree; a person decides), `unclear` (values exist but none can be relied on, such as no unit or a range), `missing`, and `reviewer_set`.
+- API: `GET /categories`, `GET /batches/{id}/variants`; `GET /products/{id}` adds catalog values and the category; review tasks and decisions cover the new kinds (`choose` a value or a category, or `set` your own value).
+- Frontend: a "Catalog values" table and the category on the product page, conflict and category items in the review panel, and "Possible variants" on the batch page.
+- Found while testing: the code rule would have flagged sequential codes such as AK-1003 and AK-1004 as variants (base "AK"). A code base must keep a digit.
 
 ---
 

@@ -8,10 +8,12 @@ from fastapi import APIRouter
 from app.api.dependencies import ActiveUser
 from app.api.schemas.products import (
     BatchImageList,
+    CategoryList,
     DocumentList,
     ProductDetail,
     ProductList,
     SheetList,
+    VariantList,
 )
 from app.api.services import products
 
@@ -46,3 +48,15 @@ def list_documents(batch_id: UUID, profile: ActiveUser) -> dict[str, Any]:
 def list_images(batch_id: UUID, profile: ActiveUser) -> dict[str, Any]:
     """List a batch's kept images, with thumbnails and near-duplicate groups."""
     return products.list_images(profile, batch_id)
+
+
+@router.get("/categories", response_model=CategoryList)
+def list_categories(profile: ActiveUser) -> dict[str, Any]:
+    """List the category tree products are placed in."""
+    return products.list_categories()
+
+
+@router.get("/batches/{batch_id}/variants", response_model=VariantList)
+def list_variants(batch_id: UUID, profile: ActiveUser) -> dict[str, Any]:
+    """List pairs of products that may be variants of one. Flagged only, never merged."""
+    return products.list_variants(profile, batch_id)

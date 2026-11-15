@@ -67,6 +67,13 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Source record** | One spreadsheet row as the file gave it, with every cell. | Row 14, including unmapped columns. |
 | **GTIN** | The number under a barcode, also called EAN or UPC. Its last digit checks the rest. | `4006381333931`. |
 | **Normalization** | Converting values into a standard form using fixed rules. | "1.5 L" becomes 1500 ml. |
+| **Standard value** | An observation in standard units (g, ml, mm, or a currency code), stored beside the original under a rule version. | "113 gm" is 113 g. |
+| **Rule version** | Which version of the normalization rules produced a standard value. | `units@1`. |
+| **Shown value** | The value a product shows for an attribute: the best source's, when every reliable source agrees. | 1.5 L from the spreadsheet. |
+| **Unclear** | An attribute whose values can't be relied on alone, such as one with no unit or a range. A person decides. | "500" for a weight. |
+| **Assumed currency** | A price with no currency taken as rupees, or "$" taken as US dollars, and marked so. | "1,299" is 1299 INR. |
+| **Lakh grouping** | Indian digit grouping, read as the same number. | "1,00,000" is 100000. |
+| **Category tree** | The fixed list of categories a product can be placed in. Seed data, not code. | Dining › Drinkware › Jugs and pitchers. |
 | **Enrichment** | Generating titles, descriptions and bullets from verified values. | Written by an LLM, citing the attributes used. |
 | **Validation** | Checking records against rules. | Flagging a missing brand. |
 | **Conflict** | Two sources give different values for one attribute. Both are kept, and a person decides. | The spreadsheet says 1.5 L, and the PDF says 1.2 L. |

@@ -718,3 +718,26 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 - Values from photos read after review run in a separate `photo_values` run that uses no submission and isn't tied to the batch's status. If another of the owner's runs is active, reading waits, and the review panel offers a button to start it.
 - Reprocessing a failed batch (D31) rebuilds its products, which removes its review decisions. Reprocessing happens only after a platform failure, before review would normally start.
 
+## D36: Normalization rules, categories and variants
+
+**Status:** Approved by the owner on 2026-11-15 (M6).
+
+**Decision:** Every observation gets a standard value beside it, under a rule version, and the original is never changed. A product shows a value only when every reliable source agrees, within 1% for numbers in the same unit; otherwise it waits for a person. Values that can't be relied on alone (no unit, a range, approximate, two values, the wrong kind of unit) are set aside rather than guessed. A category is chosen by gpt-oss-120b from a fixed tree, and variants are flagged by rules, never merged.
+
+**Context:** M3 to M5B kept every source's value and marked differences, but chose nothing. Catalog values need one standard form, and the owner's suppliers are Indian.
+
+**Owner's choices (2026-11-15):**
+- India defaults for now, with options to change them later: g, ml and mm (lengths shown in cm); INR when no currency is given and a lone "$" read as USD, both marked as assumed; "1,00,000" read as 100000.
+- A combined size such as "10cm x 6cm x 3cm" becomes length, width and height.
+- Numbers agree within a 1% tolerance.
+- The LLM chooses from a fixed Home & Kitchen tree. "Other", a confidence below 0.7, or no answer goes to review.
+- Variants are flagged when names differ only in colour or size words (and brands don't differ), or codes differ only in a short last part. Similar photos are recorded as support, never as a reason on their own.
+
+**Consequences:**
+- When sources agree, the spreadsheet's value is shown first, then a PDF's, then a photo's.
+- Ounces for a capacity are read as US fluid ounces, and marked so.
+- A person can choose one source's value or type their own; their value is kept apart from every source, and normalizing again never overwrites it. The same holds for a category a person chooses.
+- Each category choice is an LLM call and counts toward the monthly spend cap. Once the cap is reached, categories go to review with the reason.
+- A code base must keep a digit, so sequential codes (AK-1003, AK-1004) are different products, not variants.
+- Changing a rule means a new rule version; values under an older version are kept, not rewritten.
+

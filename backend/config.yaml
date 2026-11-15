@@ -245,6 +245,61 @@ matching:
   # Candidates kept per image, best first.
   max_candidates_per_image: 3
 
+# Standard values and the value each product shows (M6). Defaults are for India; making them a
+# choice per user comes later.
+normalization:
+  # Stored on every normalized value. Raise it when a rule changes; old rows stay.
+  rule_version: units@1
+  # Commas group digits, including lakh grouping (1,00,000), and a dot is the decimal point.
+  # A comma followed by one or two digits and nothing else ("1,5") is read as a decimal comma.
+  # A price with no currency is taken as this, marked as assumed.
+  default_currency: INR
+  # A lone "$" is taken as this, marked as assumed.
+  dollar_currency: USD
+  # Numbers within this share of each other agree (1 kg and 2.2 lb do; 1.5 L and 1.4 L don't).
+  agreement_tolerance: 0.01
+  # When sources agree, the value shown comes from the lowest rank. Unlisted extractors rank last.
+  source_ranks:
+    spreadsheet@1: 1
+    pdf_text+llm@1: 2
+    ocr+llm@1: 3
+  standard_units: { mass: g, volume: ml, length: mm }
+  # Each unit as written, lowercased, to the standard unit of its family.
+  units:
+    mass: { mg: 0.001, g: 1, gm: 1, gms: 1, gr: 1, gram: 1, grams: 1, gramme: 1, grammes: 1,
+            kg: 1000, kgs: 1000, kilo: 1000, kilos: 1000, kilogram: 1000, kilograms: 1000,
+            lb: 453.59237, lbs: 453.59237, pound: 453.59237, pounds: 453.59237,
+            oz: 28.349523125, ounce: 28.349523125, ounces: 28.349523125 }
+    volume: { ml: 1, millilitre: 1, millilitres: 1, milliliter: 1, milliliters: 1, cc: 1,
+              cl: 10, dl: 100, l: 1000, lt: 1000, ltr: 1000, ltrs: 1000, litre: 1000,
+              litres: 1000, liter: 1000, liters: 1000, fl oz: 29.5735295625,
+              floz: 29.5735295625, fl. oz: 29.5735295625, gallon: 3785.411784,
+              gallons: 3785.411784 }
+    length: { mm: 1, millimetre: 1, millimetres: 1, millimeter: 1, millimeters: 1, cm: 10,
+              centimetre: 10, centimetres: 10, centimeter: 10, centimeters: 10, m: 1000,
+              metre: 1000, metres: 1000, meter: 1000, meters: 1000, in: 25.4, inch: 25.4,
+              inches: 25.4, '"': 25.4, ft: 304.8, feet: 304.8, foot: 304.8 }
+  # Currency as written, lowercased, to its ISO code. "$" is handled by dollar_currency.
+  currencies: { "₹": INR, rs: INR, rs.: INR, inr: INR, rupee: INR, rupees: INR, usd: USD,
+                us$: USD, "€": EUR, eur: EUR, "£": GBP, gbp: GBP, aud: AUD, a$: AUD }
+  # Words that make a value approximate or a limit, not a measurement.
+  approximate_words: [ca, ca., approx, approx., approximately, about, around, "~", upto,
+                      up to, max, max., maximum, min, min., minimum, "<", ">", "≤", "≥"]
+  category:
+    # Off: no category is chosen and none is asked for (tests turn it off unless they need it).
+    enabled: true
+    # Below this, or "other", the category goes to review.
+    min_confidence: 0.7
+  variants:
+    # Removed from names before comparing, so "Mug Red" and "Mug Blue" match.
+    colour_words: [black, white, red, blue, green, yellow, orange, pink, purple, grey, gray,
+                   silver, gold, brown, beige, cream, clear, transparent, natural, navy, teal]
+    size_words: [small, medium, large, xl, xxl, mini, big, s, m, l]
+    # Codes sharing everything but a final part of at most this many characters are variants.
+    code_suffix_max_chars: 4
+    # Photos at least this similar support a name or code match; never enough alone.
+    image_support_min_similarity: 0.85
+
 # Image embeddings come from Bedrock, from the worker only (D34). Changing the model means a new
 # embedding_models row, and a new table if the dimension changes.
 embeddings:
@@ -278,6 +333,14 @@ llm:
       temperature: 0
       timeout_seconds: 60
       # Calls made for one request, counting retries after an unusable reply.
+      max_attempts: 2
+    category:
+      model_id: openai.gpt-oss-120b-1:0
+      prompt: catalog/category
+      prompt_version: "1"
+      max_tokens: 2000
+      temperature: 0
+      timeout_seconds: 60
       max_attempts: 2
     document_attributes:
       model_id: openai.gpt-oss-120b-1:0
@@ -356,10 +419,15 @@ pipelines:
     # Which product each image shows, then values from photos accepted for a product.
     - stage: associate
       job_type: associate_images
+    # Standard values, the value each product shows, variants, then categories.
+    - stage: normalize
+      job_type: normalize_batch
   # Values from photos a person accepted for a product, after processing finished.
   photo_values:
     - stage: photo_values
       job_type: photo_values_plan
+    - stage: normalize
+      job_type: normalize_batch
 
 # Admin-only diagnostic runs of the no-op pipeline.
 test_runs:

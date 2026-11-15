@@ -166,8 +166,43 @@ export type ProductImage = {
   decided_by: string;
 };
 
+export type StandardValue = {
+  id: string;
+  display: string;
+  unit: string | null;
+  flags: string[];
+  raw_value: string;
+  source_file_name: string;
+  location: CellLocation;
+  rule_version: string;
+};
+
+export type CatalogValue = {
+  code: string;
+  name: string;
+  state: "verified" | "conflict" | "unclear" | "missing" | "reviewer_set";
+  shown: string | null;
+  decided_by: string | null;
+  values: StandardValue[];
+};
+
+export type CategoryRef = { id: string; code: string; name: string };
+
+export type ProductCategory = {
+  state: "none" | "assigned" | "needs_review";
+  source: "llm" | "person" | null;
+  confidence: number | null;
+  reason: string | null;
+  category: CategoryRef | null;
+  suggested: CategoryRef | null;
+};
+
+export type CategoryNode = CategoryRef & { path: string };
+
 export type ProductDetail = Product & {
   observations: Observation[];
+  catalog_values: CatalogValue[];
+  category: ProductCategory | null;
   images: ProductImage[];
   differing_attributes: string[];
 };
@@ -286,16 +321,34 @@ export type ImageMatch = MatchCandidate & {
 
 export type ImageMatchList = { batch_id: string; items: ImageMatch[] };
 
+export type ConflictValue = {
+  id: string;
+  display: string;
+  raw_value: string;
+  source_file_name: string;
+  location: CellLocation;
+  flags: string[];
+};
+
 export type ReviewTask = {
   id: string;
+  kind: "image_match" | "attribute_conflict" | "category";
   status: "open" | "resolved";
-  image_id: string;
-  source_file_id: string;
-  image_name: string;
-  thumbnail_url: string | null;
-  candidates: MatchCandidate[];
   created_at: string;
   resolved_at: string | null;
+  image_id: string | null;
+  source_file_id: string | null;
+  image_name: string | null;
+  thumbnail_url: string | null;
+  candidates: MatchCandidate[];
+  product_id: string | null;
+  product_key: string | null;
+  attribute_code: string | null;
+  attribute_name: string | null;
+  values: ConflictValue[];
+  suggested_category_id: string | null;
+  suggested_category_name: string | null;
+  category_reason: string | null;
 };
 
 export type ReviewTaskList = {
@@ -309,5 +362,18 @@ export type PhotoValuesStatus = "queued" | "waiting" | "not_needed";
 export type DecisionResult = {
   task_id: string;
   accepted_product_id: string | null;
+  shown: string | null;
   photo_values: PhotoValuesStatus;
 };
+
+export type VariantPair = {
+  id: string;
+  status: "flagged" | "confirmed" | "dismissed";
+  product_a_id: string;
+  product_a_key: string;
+  product_b_id: string;
+  product_b_key: string;
+  reasons: { rule: string; text: string }[];
+};
+
+export type VariantList = { batch_id: string; items: VariantPair[] };

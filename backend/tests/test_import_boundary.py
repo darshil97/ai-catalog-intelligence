@@ -89,7 +89,7 @@ def test_worker_does_not_need_web_packages() -> None:
         assert {"noop", "ingest_file", "extract_select", "extract_rows", "documents_plan",
                 "documents_read", "document_values", "images_plan", "images_process",
                 "images_group", "associate_images", "photo_values_plan",
-                "photo_value"} <= names
+                "photo_value", "normalize_batch", "categorize_product"} <= names
         """
     )
     assert result.returncode == 0, result.stderr
