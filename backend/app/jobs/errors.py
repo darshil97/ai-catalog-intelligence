@@ -15,3 +15,15 @@ class LeaseLostError(Exception):
 
 class JobInterruptedError(Exception):
     """The job must stop now, because the worker is stopping or lost its lease."""
+
+
+class QuotaBlockedError(Exception):
+    """A global cap stops this job for now. The job waits as blocked_quota, and isn't failed.
+
+    Attributes:
+        reason: Which cap, such as "llm_spend_cap".
+    """
+
+    def __init__(self, reason: str, message: str) -> None:
+        super().__init__(message)
+        self.reason = reason

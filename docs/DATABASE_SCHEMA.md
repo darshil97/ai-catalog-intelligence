@@ -8,7 +8,8 @@
 - **Document extraction** (`ocr_results`, `document_files`, `products.origin`): migration `0006` (M4), applied to `production` and `test`. `dev` is still at `0005`.
 - **Images** (`embedding_models`, `images`, `image_duplicate_groups`, `image_embeddings`, `pipeline_runs.image_duplicate_groups`): migration `0007` (M5A), applied to `production` and `test`. `dev` is still at `0005`.
 - **Image association and review** (`image_match_candidates`, `product_images`, `review_tasks`, `review_events`, image match counts on `pipeline_runs`): migration `0008` (M5B), applied to `production` and `test`. `dev` is still at `0005`.
-- **Normalization** (`normalized_values`, `product_attributes`, `variant_candidates`, seeded `categories`, category columns on `products`, two more review kinds): migration `0009` (M6), applied to `test` only so far.
+- **Normalization** (`normalized_values`, `product_attributes`, `variant_candidates`, seeded `categories`, category columns on `products`, two more review kinds): migration `0009` (M6), applied to `production` and `test`. `dev` is still at `0005`.
+- **Enrichment** (`generated_content`, enrichment columns on `products`, `paused` runs with `pause_reason`): migration `0010` (M7), applied to `test` only so far.
 
 This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
@@ -397,9 +398,28 @@ One row per PDF or image read by the `documents` stage (M4): `source_file_id` PK
 
 ### `generated_content`
 
-`id`, `product_id` FK, `field` (`title`, `description`, `bullet`), `text`, `version` INTEGER, `model_run_id` FK, `cited_attribute_ids` UUID[] NOT NULL, `status` (`generated`, `edited`, `approved`, `rejected`), `created_at`.
+**As built (M7, D37):** one row per product version, replacing the planned one row per field (which couldn't hold several bullets).
 
-**Constraint:** `UNIQUE(product_id, field, version)`.
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `product_id`, `batch_id`, `owner_user_id` | FK | Cascade |
+| `version` | INTEGER NOT NULL | 1, 2, … per product; at most `enrichment.max_versions_per_product` |
+| `is_current` | BOOLEAN NOT NULL | Partial unique index on `(product_id) WHERE is_current` |
+| `title`, `description` | TEXT NOT NULL | The description's sentences joined |
+| `bullets` | TEXT[] NOT NULL | |
+| `claims` | JSONB NOT NULL | Each title, sentence and bullet: `field`, `index`, `text`, and `facts` (attribute, code, name, value shown, state, selected value or reviewer flag), frozen as they were when written |
+| `cited_attribute_ids` | UUID[] NOT NULL | Every attribute cited |
+| `input_fingerprint` | TEXT NOT NULL | Hash of the facts given; differs from the product's current facts when the text is out of date |
+| `rules_version` | TEXT NOT NULL | `enrich@1` |
+| `model_run_id` | UUID FK, nullable | `ON DELETE SET NULL` |
+| `status` | TEXT NOT NULL | `generated`, `edited`, `approved`, `rejected` (M9 uses the last three) |
+| `created_by` | TEXT NOT NULL | `system`, or a person (M9) |
+| `created_at` | TIMESTAMPTZ | |
+
+**Constraint:** `UNIQUE(product_id, version)`.
+
+**M7 on `products`:** `enrichment_state` (`none`, `generated`, `skipped`, `failed`), `enrichment_message` and `enrichment_at`. "Out of date" isn't stored: it's worked out by comparing fingerprints.
 
 ### `validation_issues`
 
@@ -459,6 +479,8 @@ Since M3 this also holds rows and cells that couldn't be used in a run that othe
 | `created_at`, `started_at`, `finished_at` | TIMESTAMPTZ | |
 
 **Constraint:** partial `UNIQUE(owner_user_id) WHERE status IN ('queued', 'running')`, enforcing one active run per user.
+
+**M7:** `status` also allows `paused`: a global cap stopped the run, and its unfinished jobs are `blocked_quota`. A paused run isn't active, so its owner can run other work; resuming fails if another run is active. `pause_reason` says which cap (`llm_spend_cap`).
 
 ### `pipeline_stage_runs`
 

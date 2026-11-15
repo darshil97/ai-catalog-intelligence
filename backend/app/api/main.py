@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
     batches,
+    enrichment,
     files,
     health,
     me,
@@ -54,4 +55,5 @@ app.include_router(batches.router)
 app.include_router(files.router)
 app.include_router(products.router)
 app.include_router(review.router)
+app.include_router(enrichment.router)
 app.include_router(test_runs.router)

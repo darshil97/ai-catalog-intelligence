@@ -300,6 +300,53 @@ normalization:
     # Photos at least this similar support a name or code match; never enough alone.
     image_support_min_similarity: 0.85
 
+# Titles, descriptions and bullets written from settled attributes only (D37). Every claim cites
+# the facts it uses, and code checks it before anything is stored.
+enrichment:
+  # The grounding rules' version, stored with each generated text.
+  rules_version: enrich@1
+  # Only these attribute states feed text.
+  usable_states: [verified, reviewer_set]
+  # Never given to the model.
+  excluded_attributes: [price, currency, sku, gtin, supplier_category]
+  # Given to the model, but allowed in the title only.
+  title_only_attributes: [model_number]
+  max_versions_per_product: 10
+  title_max_chars: 150
+  bullets_min: 3
+  bullets_max: 5
+  bullet_max_chars: 200
+  sentences_min: 2
+  sentences_max: 5
+  description_max_chars: 1000
+  # A fact's text is cut to this before it goes in the prompt (a long supplier description).
+  fact_max_chars: 1500
+  # Specification phrases a claim may use only if a cited fact says them too.
+  claim_phrases: [dishwasher safe, dishwasher-safe, microwave safe, microwave-safe, oven safe,
+                  oven-safe, freezer safe, freezer-safe, bpa free, bpa-free, leak proof,
+                  leak-proof, leakproof, spill proof, spill-proof, food grade, food-grade,
+                  non-stick, nonstick, non stick, rust proof, rust-proof, rustproof,
+                  stain resistant, stain-resistant, waterproof, water resistant,
+                  water-resistant, shatterproof, shatter-proof, unbreakable, insulated,
+                  vacuum, double wall, double-wall, heat resistant, heat-resistant,
+                  induction, warranty, guarantee, certified, certification, iso, fda, bis,
+                  isi, lfgb, organic, eco-friendly, eco friendly, biodegradable,
+                  recyclable, compostable, handmade, hand made, handcrafted, imported,
+                  made in, toxin free, toxin-free, lead free, lead-free, antibacterial,
+                  anti-bacterial, odour free, odor free, ergonomic]
+  # Material words a claim may use only if a cited fact says them too. Colour words come from
+  # normalization.variants.colour_words.
+  material_words: [steel, stainless, aluminium, aluminum, copper, brass, iron, cast iron,
+                   glass, borosilicate, ceramic, porcelain, stoneware, earthenware, bone china,
+                   melamine, plastic, polypropylene, silicone, rubber, wood, wooden, bamboo,
+                   acacia, teak, marble, granite, stone, cotton, linen, jute, polyester,
+                   nylon, acrylic, tritan, titanium, enamel, enamelled, cork, leather]
+  # Never allowed: claims no source can support.
+  banned_phrases: ["best", "#1", "number one", "guaranteed", "100%", "perfect", "world's",
+                   "finest", "cheapest", "lowest price", "free shipping", "sale", "discount",
+                   "cure", "cures", "heal", "heals", "healthy", "healthier", "detox",
+                   "doctor recommended", "clinically"]
+
 # Image embeddings come from Bedrock, from the worker only (D34). Changing the model means a new
 # embedding_models row, and a new table if the dimension changes.
 embeddings:
@@ -347,6 +394,15 @@ llm:
       prompt: extraction/document_attributes
       prompt_version: "1"
       max_tokens: 6000
+      temperature: 0
+      timeout_seconds: 90
+      max_attempts: 2
+    enrichment:
+      model_id: openai.gpt-oss-120b-1:0
+      prompt: catalog/enrichment
+      prompt_version: "1"
+      # Room for gpt-oss's reasoning as well as the text.
+      max_tokens: 4000
       temperature: 0
       timeout_seconds: 90
       max_attempts: 2
@@ -428,6 +484,11 @@ pipelines:
       job_type: photo_values_plan
     - stage: normalize
       job_type: normalize_batch
+
+  # Titles, descriptions and bullets, started from the batch page (D37). One chunk per product.
+  enrich:
+    - stage: enrich
+      job_type: enrich_plan
 
 # Admin-only diagnostic runs of the no-op pipeline.
 test_runs:

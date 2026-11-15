@@ -27,6 +27,7 @@ def list_products(profile: Profile, batch_id: UUID) -> dict[str, Any]:
 
 def get_product(profile: Profile, product_id: UUID) -> dict[str, Any]:
     """Return a product with its observations and accepted images, or 404."""
+    from app.api.services.enrichment import product_content
     from app.api.services.review import thumbnail_url
 
     limit = get_catalog_config()["max_list_items"]
@@ -38,6 +39,7 @@ def get_product(profile: Profile, product_id: UUID) -> dict[str, Any]:
                 conn, profile.user_id, product_id, get_normalization_config()["rule_version"]
             )
             category = products.category(conn, profile.user_id, product_id)
+            generated = product_content(conn, profile, product)
     except products.ProductNotFoundError:
         not_found()
     product["catalog_values"] = [
@@ -53,6 +55,7 @@ def get_product(profile: Profile, product_id: UUID) -> dict[str, Any]:
         for row in values
     ]
     product["category"] = _category(category)
+    product["generated_content"] = generated
     product["images"] = [
         {
             "image_id": row["image_id"],

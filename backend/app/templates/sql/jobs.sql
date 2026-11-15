@@ -159,3 +159,33 @@ ORDER BY position;
 SELECT status, count(*) AS count FROM jobs
 WHERE pipeline_run_id = %(run_id)s
 GROUP BY status;
+
+-- name: mark_blocked
+-- A global cap stopped this job. Its attempt isn't counted: it waits, as if never claimed.
+UPDATE jobs
+SET status = 'blocked_quota', attempts = GREATEST(attempts - 1, 0), lease_token = NULL,
+    lease_owner = NULL, lease_expires_at = NULL, last_error = %(error)s,
+    error_class = 'QuotaBlocked'
+WHERE id = %(job_id)s;
+
+-- name: block_pending_jobs
+UPDATE jobs
+SET status = 'blocked_quota', last_error = %(error)s, error_class = 'QuotaBlocked'
+WHERE pipeline_run_id = %(run_id)s AND status = 'pending';
+
+-- name: pause_run
+UPDATE pipeline_runs
+SET status = 'paused', pause_reason = %(reason)s
+WHERE id = %(run_id)s AND status IN ('queued', 'running');
+
+-- name: resume_run
+-- Raises a unique violation if the owner has another active run.
+UPDATE pipeline_runs
+SET status = 'running', pause_reason = NULL
+WHERE id = %(run_id)s AND status = 'paused'
+RETURNING id;
+
+-- name: unblock_jobs
+UPDATE jobs
+SET status = 'pending', run_after = now(), last_error = NULL, error_class = NULL
+WHERE pipeline_run_id = %(run_id)s AND status = 'blocked_quota';

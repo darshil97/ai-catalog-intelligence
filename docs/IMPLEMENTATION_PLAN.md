@@ -16,8 +16,8 @@ Each module gets its own proposal and approval before work starts, and review af
 | M4 | Document and image text extraction | M3 | Completed |
 | M5A | Image processing | M2, M0B | Completed |
 | M5B | Image association | M3, M4, M5A | Completed |
-| M6 | Product normalization | M3, M4 | In Progress |
-| M7 | Catalog enrichment | M6 | Not Started |
+| M6 | Product normalization | M3, M4 | Completed |
+| M7 | Catalog enrichment | M6 | In Progress |
 | M8 | Catalog validation | M6, M7 | Not Started |
 | M9 | Human review | M5B, M8 | Not Started |
 | M10 | Export | M9 | Not Started |
@@ -445,7 +445,7 @@ Generated cases in the tests cover lookalike products, conflicting codes, two co
 
 ## M6 Product normalization
 
-**Status:** proposal approved by the owner on 2026-11-15 (D36). Built and checked locally; not yet shipped. Migration `0009` is not yet applied to `production`.
+**Status:** proposal approved by the owner on 2026-11-15 (D36). **Completed on 2026-11-15.** Shipped as `99a4423`, migration `0009` applied to `production` (by CI) and `test`, and the owner's live test is done. `dev` is still at `0005`.
 
 **Scope**
 - Attribute mapping onto definitions.
@@ -478,6 +478,8 @@ Generated cases in the tests cover lookalike products, conflicting codes, two co
 
 ## M7 Catalog enrichment
 
+**Status:** proposal approved by the owner on 2026-11-15 (D37), all eleven decisions as recommended. In progress on branch `m7-enrichment`.
+
 **Scope**
 - Titles, descriptions and bullet points from verified attributes.
 - LLM calls through LangChain, using gpt-oss-120b for text, with a per-task config entry. If LLM calls first arrive in M4, the setup moves there.
@@ -497,6 +499,19 @@ Generated cases in the tests cover lookalike products, conflicting codes, two co
 - Malformed and truncated output.
 - A retry reuses the stored result.
 - The cap is reached mid-run, and the job pauses without being lost.
+
+**Implementation notes (built and checked locally; not yet shipped)**
+- Migration `0010`: `generated_content` (one row per product version, citations frozen per claim), `products.enrichment_state`, `enrichment_message` and `enrichment_at`, and `paused` runs with `pause_reason`. Expand-only. Applied to `test` on 2026-11-15 with the owner's OK; not yet to `production` or `dev`.
+- New `enrich` pipeline: `enrich_plan` picks products whose text is missing, failed or out of date, then one `enrich_product` per product (one gpt-oss-120b call). It uses no submission and isn't tied to the batch's status, like `photo_values`.
+- `app/enrichment`: `facts.py` (settled facts, left-out reasons, fingerprint; shared with the API), `grounding.py` (the checks in D37, using M6's unit rules), `models.py` (reply shape), `repository.py`. Prompt `catalog/enrichment`, settings under `enrichment:` and `llm.tasks.enrichment` in `config.yaml`.
+- `blocked_quota` is used for the first time: `QuotaBlockedError` from a handler makes `queue.block` set that job and the run's other pending jobs to `blocked_quota` (no attempt counted) and the run to `paused`; `queue.resume_run` puts them back. Monthly spend is now readable by the API (`app/usage/spend.py`).
+- API: `GET`/`POST /batches/{id}/enrichment`, `POST /batches/{id}/enrichment/resume`; `GET /products/{id}` adds `generated_content`.
+- Frontend: a "Generated content" panel on the batch page (Generate, paused banner with Resume, each product's state) and a section on the product page (text with a chip per cited fact, Left out, Regenerate).
+- Found while building: a product code such as "TG-500X" was read as the number 50. Codes are now checked as copied text from a cited fact before numbers are read.
+
+**Tests:** 28 fast tests in `test_enrichment.py` (facts, every fabrication case, citations, lengths, malformed replies) and 13 database tests in `test_enrichment_worker.py` on Neon `test` (end to end, fabrication retried then refused, truncated replies, reuse after a lost lease, the cap pausing mid-run and resuming, a paused run not blocking other work, out of date after a review decision, skipped products, cross-user, signed-out and waitlisted access). All pass. **Live check (decision 11, 2026-11-15, `tests/test_enrichment_live.py`):** one real gpt-oss-120b product (a 1 L steel bottle with a supplier description, a colour in conflict and a price). The first reply was refused because it put the model number in the description and a bullet. The retry, told why, passed every check: "Milton Insulated Water Bottle THERMOSTEEL-1000, 1 L", three description sentences and five bullets. No price or colour appeared, and "leak-proof" and "24 hours" were allowed because the supplier's description says them. 782–870 input and 1,101–1,333 output tokens per call (more output than estimated, from reasoning), $0.0018 for both calls, so about $0.0009 per call. The prompt's title-only rule was made firmer afterwards; that wording hasn't had a live call.
+
+Unrelated and pre-existing: running `test_ingest_kinds` before `test_vision` in one process fails the vision tests, because it sets Pillow's global pixel limit.
 
 ---
 

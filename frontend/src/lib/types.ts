@@ -205,6 +205,7 @@ export type ProductDetail = Product & {
   category: ProductCategory | null;
   images: ProductImage[];
   differing_attributes: string[];
+  generated_content: GeneratedContent | null;
 };
 
 export type SheetColumn = {
@@ -377,3 +378,83 @@ export type VariantPair = {
 };
 
 export type VariantList = { batch_id: string; items: VariantPair[] };
+
+// Generated titles, descriptions and bullets (M7).
+
+export type EnrichmentState =
+  "none" | "generated" | "out_of_date" | "skipped" | "failed";
+
+export type EnrichmentRun = {
+  id: string;
+  status:
+    "queued" | "running" | "paused" | "succeeded" | "failed" | "cancelled";
+  pause_reason: string | null;
+  blocked: number;
+  waiting: number;
+  done: number;
+  total: number;
+  created_at: string;
+  finished_at: string | null;
+};
+
+export type ProductEnrichment = {
+  product_id: string;
+  product_key: string;
+  state: EnrichmentState;
+  message: string | null;
+  version: number | null;
+  title: string | null;
+  facts: number;
+  left_out: number;
+  can_generate: boolean;
+};
+
+export type BatchEnrichment = {
+  batch_id: string;
+  open_reviews: number;
+  can_generate: number;
+  budget_reached: boolean;
+  run: EnrichmentRun | null;
+  items: ProductEnrichment[];
+};
+
+export type EnrichmentStarted = { run_id: string; products: number };
+
+export type Citation = {
+  code: string;
+  name: string;
+  display: string;
+  state: string;
+  attribute_id: string | null;
+};
+
+export type GeneratedClaim = {
+  field: "title" | "description" | "bullets";
+  index: number;
+  text: string;
+  facts: Citation[];
+};
+
+export type LeftOutAttribute = {
+  code: string;
+  name: string;
+  state: string;
+  reason: string;
+};
+
+export type GeneratedContent = {
+  version: number | null;
+  state: EnrichmentState;
+  message: string | null;
+  title: string | null;
+  description: string | null;
+  bullets: string[];
+  claims: GeneratedClaim[];
+  status: string | null;
+  model_id: string | null;
+  prompt_version: string | null;
+  rules_version: string | null;
+  created_at: string | null;
+  left_out: LeftOutAttribute[];
+  can_generate: boolean;
+};

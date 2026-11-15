@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.api.schemas.enrichment import GeneratedContent
+
 
 class Product(BaseModel):
     """A product found in a batch's spreadsheets."""
@@ -83,6 +85,9 @@ class ProductDetail(Product):
         "behind it.",
     )
     category: "ProductCategory | None" = Field(None, description="Its category.")
+    generated_content: "GeneratedContent | None" = Field(
+        None, description="Its generated title, description and bullets, with their citations."
+    )
     images: list["ProductImage"] = Field(
         default_factory=list, description="Photos accepted as showing it, in file order."
     )

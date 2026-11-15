@@ -272,6 +272,48 @@ def release(conn: Connection[Any], job: Job) -> None:
     logger.info("Job released: job_id=%s", job.id)
 
 
+def block(conn: Connection[Any], job: Job, reason: str, message: str) -> int:
+    """Pause a job's run because a global cap was reached, losing nothing.
+
+    The job and every other pending job of its run become blocked_quota, with no attempt
+    counted, and the run becomes paused. Claims take only pending jobs, and the idle-shutdown
+    check ignores blocked ones, so the worker can stop. resume_run puts them back.
+
+    Returns:
+        How many jobs are now blocked, this one included.
+
+    Raises:
+        LeaseLostError: if this worker no longer owns the job.
+    """
+    fence(conn, job)
+    text = message[:_MAX_ERROR_LENGTH]
+    conn.execute(query("jobs", "mark_blocked"), {"job_id": job.id, "error": text})
+    others = conn.execute(
+        query("jobs", "block_pending_jobs"), {"run_id": job.pipeline_run_id, "error": text}
+    ).rowcount
+    conn.execute(query("jobs", "pause_run"), {"run_id": job.pipeline_run_id, "reason": reason})
+    logger.warning(
+        "Run paused: run_id=%s reason=%s blocked_jobs=%d", job.pipeline_run_id, reason, others + 1
+    )
+    return others + 1
+
+
+def resume_run(conn: Connection[Any], run_id: UUID) -> int | None:
+    """Put a paused run's blocked jobs back in the queue.
+
+    Returns:
+        How many jobs were unblocked, or None if the run isn't paused.
+
+    Raises:
+        psycopg.errors.UniqueViolation: if the owner already has an active run.
+    """
+    if conn.execute(query("jobs", "resume_run"), {"run_id": run_id}).fetchone() is None:
+        return None
+    count = conn.execute(query("jobs", "unblock_jobs"), {"run_id": run_id}).rowcount
+    logger.info("Run resumed: run_id=%s jobs=%d", run_id, count)
+    return count
+
+
 def reap_expired(conn: Connection[Any], settings: QueueSettings) -> int:
     """Recover jobs whose worker vanished. Returns how many were recovered or failed."""
     rows = conn.execute(query("jobs", "expired_jobs")).fetchall()
