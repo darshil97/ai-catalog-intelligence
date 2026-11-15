@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type DragEvent } from "react";
 
 import { RequireActive } from "@/components/Account";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { Extraction } from "@/components/Extraction";
+import { Extraction, type BatchProgress } from "@/components/Extraction";
 import { Working } from "@/components/Working";
 import { ApiError, api } from "@/lib/api";
 import type {
@@ -45,6 +45,7 @@ function BatchDetail() {
   const [uploads, setUploads] = useState<LocalUpload[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState<BatchProgress | null>(null);
 
   const running = run.data ? ACTIVE_RUN.has(run.data.status) : false;
   const { reload: reloadBatch } = batch;
@@ -176,7 +177,11 @@ function BatchDetail() {
           {BATCH_TEXT[batch.data.status] ?? batch.data.status}
         </span>
       </div>
-      <Stepper status={batch.data.status} hasFiles={uploadedCount > 0} />
+      <Stepper
+        status={batch.data.status}
+        hasFiles={uploadedCount > 0}
+        progress={progress}
+      />
       {actionError && (
         <p className="error" role="alert">
           {actionError}
@@ -227,7 +232,12 @@ function BatchDetail() {
       {run.data && <RunPanel run={run.data} />}
       {run.data?.status === "succeeded" && (
         // Keyed by the run, so a batch processed again loads its new results.
-        <Extraction key={run.data.run_id} batchId={batchId} run={run.data} />
+        <Extraction
+          key={run.data.run_id}
+          batchId={batchId}
+          run={run.data}
+          onProgress={setProgress}
+        />
       )}
       {processed && (
         // Once processed, the files are reference: folded away at the bottom.
@@ -263,9 +273,18 @@ const BATCH_BADGE: Record<string, string> = {
   failed: "error",
 };
 
-/** Where the batch is: files, processing, then review and copy, then export (coming). */
-function Stepper({ status, hasFiles }: { status: string; hasFiles: boolean }) {
+/** Where the batch is: files, processing, review and copy, then approval and export. */
+function Stepper({
+  status,
+  hasFiles,
+  progress,
+}: {
+  status: string;
+  hasFiles: boolean;
+  progress: BatchProgress | null;
+}) {
   const processed = status === "completed";
+  const reviewed = processed && (progress?.reviewed ?? false);
   const running = status === "queued" || status === "processing";
   const steps: { label: string; state: "done" | "now" | "" }[] = [
     {
@@ -280,8 +299,14 @@ function Stepper({ status, hasFiles }: { status: string; hasFiles: boolean }) {
           ? "now"
           : "",
     },
-    { label: "Review, write and check", state: processed ? "now" : "" },
-    { label: "Approve and export", state: "" },
+    {
+      label: "Review, write and check",
+      state: reviewed ? "done" : processed ? "now" : "",
+    },
+    {
+      label: "Approve and export",
+      state: reviewed ? (progress?.exported ? "done" : "now") : "",
+    },
   ];
   return (
     <ol className="stepper" aria-label="Progress">

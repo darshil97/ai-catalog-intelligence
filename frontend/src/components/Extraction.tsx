@@ -22,6 +22,7 @@ import type {
   DocumentList,
   ProductList,
   RunError,
+  ExportList,
   VariantDecided,
   VariantList,
   VariantPair,
@@ -49,12 +50,22 @@ const MAPPING_TEXT: Record<Sheet["mapping_source"], string> = {
  * pages or values that couldn't be used. Mounted once the run has finished, so it loads the
  * final result.
  */
+/** How far a processed batch has got, for the progress strip at the top of the page. */
+export type BatchProgress = {
+  // Nothing left to review, write or fix: every product not rejected is ready or approved.
+  reviewed: boolean;
+  // Every product not rejected is approved, and the latest export holds them all.
+  exported: boolean;
+};
+
 export function Extraction({
   batchId,
   run,
+  onProgress,
 }: {
   batchId: string;
   run: BatchRun;
+  onProgress?: (progress: BatchProgress) => void;
 }) {
   const products = useApiResource<ProductList>(`/batches/${batchId}/products`);
   const [version, setVersion] = useState(0);
@@ -72,7 +83,9 @@ export function Extraction({
   const approval = useApiResource<BatchApproval>(
     `/batches/${batchId}/approval`,
   );
+  const exports = useApiResource<ExportList>(`/batches/${batchId}/exports`);
   const { reload: reloadApproval } = approval;
+  const { reload: reloadExports } = exports;
   const { reload: reloadReviews } = reviews;
   const { reload: reloadEnrichment } = enrichment;
   const { reload: reloadChecks } = checks;
@@ -81,6 +94,7 @@ export function Extraction({
     reloadEnrichment();
     reloadChecks();
     reloadApproval();
+    reloadExports();
   }, [
     tab,
     version,
@@ -88,7 +102,25 @@ export function Extraction({
     reloadEnrichment,
     reloadChecks,
     reloadApproval,
+    reloadExports,
   ]);
+  const kept = approval.data?.items.filter((item) => item.state !== "rejected");
+  const reviewed =
+    reviews.data !== null &&
+    reviews.data.items.every((task) => task.status !== "open") &&
+    kept !== undefined &&
+    kept.length > 0 &&
+    kept.every((item) => item.state === "approved" || item.can_approve);
+  const allApproved =
+    kept !== undefined &&
+    kept.length > 0 &&
+    kept.every((item) => item.state === "approved");
+  const latest = exports.data?.items[0];
+  const exported =
+    allApproved && latest !== undefined && latest.product_count === kept.length;
+  useEffect(() => {
+    onProgress?.({ reviewed, exported });
+  }, [reviewed, exported, onProgress]);
   const openReviews = reviews.data
     ? reviews.data.items.filter((task) => task.status === "open").length
     : null;
@@ -268,6 +300,7 @@ export function Extraction({
           batchId={batchId}
           approval={approval.data}
           version={version}
+          onMade={() => setVersion((current) => current + 1)}
         />
       )}
       {tab === "photos" && <ImageGrid batchId={batchId} version={version} />}
