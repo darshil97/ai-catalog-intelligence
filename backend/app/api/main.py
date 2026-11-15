@@ -10,6 +10,7 @@ from app.api.routes import (
     approval,
     batches,
     enrichment,
+    export,
     files,
     health,
     me,
@@ -63,4 +64,5 @@ app.include_router(review.router)
 app.include_router(enrichment.router)
 app.include_router(validation.router)
 app.include_router(approval.router)
+app.include_router(export.router)
 app.include_router(test_runs.router)

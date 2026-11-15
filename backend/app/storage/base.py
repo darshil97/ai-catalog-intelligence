@@ -167,6 +167,22 @@ def derived_key(owner: str, batch_id: UUID, file_id: UUID) -> str:
     return _key("derived", owner, batch_id, file_id)
 
 
+_EXPORT_NAME = re.compile(r"^[a-z0-9-]{1,80}\.(csv|xlsx)$")
+
+
+def export_key(owner: str, batch_id: UUID, export_id: UUID, filename: str) -> str:
+    """Return the key for an export the API builds (D41), named for the person's download.
+
+    Raises:
+        ValueError: if an ID or the filename isn't safe in a key.
+    """
+    if not _EXPORT_NAME.match(filename):
+        raise ValueError(f"Unsafe export filename: {filename!r}")
+    prefix = get_storage_config()["prefix"]
+    parts = [prefix, "exports", _segment(owner), _segment(batch_id), _segment(export_id)]
+    return "/".join([*parts, filename])
+
+
 def hex_to_base64(sha256: str) -> str:
     """Convert a hex SHA-256 to the base64 form S3 uses."""
     return base64.b64encode(bytes.fromhex(sha256)).decode()

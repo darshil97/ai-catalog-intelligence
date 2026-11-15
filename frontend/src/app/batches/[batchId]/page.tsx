@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type DragEvent } from "react";
 import { RequireActive } from "@/components/Account";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Extraction } from "@/components/Extraction";
+import { Working } from "@/components/Working";
 import { ApiError, api } from "@/lib/api";
 import type {
   Batch,
@@ -390,14 +391,30 @@ function UploadList({ uploads }: { uploads: LocalUpload[] }) {
       {uploads.map((upload) => (
         <li key={upload.key}>
           <span>{upload.name}</span>
-          <span
-            className={upload.progress.phase === "failed" ? "error" : "muted"}
-          >
-            {PHASE_TEXT[upload.progress.phase]}
-            {upload.progress.phase === "uploading" &&
-              ` ${Math.round(upload.progress.fraction * 100)}%`}
-            {upload.progress.message && `: ${upload.progress.message}`}
-          </span>
+          {upload.progress.phase === "done" ||
+          upload.progress.phase === "failed" ? (
+            <span
+              className={upload.progress.phase === "failed" ? "error" : "muted"}
+            >
+              {PHASE_TEXT[upload.progress.phase]}
+              {upload.progress.message && `: ${upload.progress.message}`}
+            </span>
+          ) : (
+            <Working
+              compact
+              label={
+                PHASE_TEXT[upload.progress.phase] +
+                (upload.progress.phase === "uploading"
+                  ? ` ${Math.round(upload.progress.fraction * 100)}%`
+                  : "")
+              }
+              progress={
+                upload.progress.phase === "uploading"
+                  ? upload.progress.fraction
+                  : null
+              }
+            />
+          )}
         </li>
       ))}
     </ul>
@@ -457,24 +474,52 @@ function FileList({
   );
 }
 
+const STAGE_TEXT: Record<string, string> = {
+  ingest: "Checking files",
+  finalize: "Checking files",
+  extract: "Reading spreadsheets",
+  documents: "Reading PDFs and photos",
+  document_values: "Reading values from PDFs and photos",
+  images: "Processing photos",
+  image_groups: "Finding duplicate photos",
+  associate: "Matching photos to products",
+  normalize: "Putting values in standard units",
+  enrich: "Writing copy",
+  photo_values: "Reading confirmed photos",
+};
+
+/** The run's current stage in words, with the share of stages done so far. */
+function RunProgress({ run }: { run: BatchRun }) {
+  const stages = run.stages;
+  const current =
+    stages.find((stage) => stage.status === "running") ??
+    stages.find((stage) => stage.status === "pending");
+  const finished = stages.filter(
+    (stage) => stage.status === "succeeded",
+  ).length;
+  const partial =
+    current && current.total_chunks > 0
+      ? current.completed_chunks / current.total_chunks
+      : 0;
+  const share = stages.length ? (finished + partial) / stages.length : null;
+  const label = current
+    ? `${STAGE_TEXT[current.stage] ?? current.stage}…` +
+      (current.total_chunks > 1
+        ? ` ${current.completed_chunks} of ${current.total_chunks}`
+        : "")
+    : "Finishing…";
+  return <Working label={label} progress={share} />;
+}
+
 function RunPanel({ run }: { run: BatchRun }) {
   const done = run.finished_at !== null;
   return (
     <section className="notice tinted" aria-live="polite">
       <h2>Processing</h2>
-      {!done && (
-        <p>
-          {run.status === "queued"
-            ? "Waiting for the worker to start. This can take a couple of minutes."
-            : "Checking files and reading spreadsheets, PDFs and photos…"}{" "}
-          {run.stages
-            .map(
-              (stage) =>
-                `${stage.stage}: ${stage.completed_chunks}/${stage.total_chunks}`,
-            )
-            .join(" · ")}
-        </p>
+      {!done && run.status === "queued" && (
+        <Working label="Waiting for the worker to start. This can take a couple of minutes." />
       )}
+      {!done && run.status !== "queued" && <RunProgress run={run} />}
       {run.status === "succeeded" && (
         <p>
           Kept {run.files_kept} of {run.files_found} files

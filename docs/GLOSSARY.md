@@ -90,6 +90,13 @@ Plain-English meanings of terms used in this project, each with an example. Add 
 | **Review task** | An item waiting for a person's decision. | An uncertain image match. |
 | **Approval** | A person's OK for a product to be exported. Needs no errors, current copy and nothing open in review. | "Approve all ready". |
 | **Changed since approval** | An approved product that changed afterwards, so it needs approving again before export. | A value edited after approval. |
+| **Working indicator** | The small pulsing dot and bar shown wherever something is being processed, filling in when progress is known. It stays still for people who ask for reduced motion. | A batch run, copy writing, uploads and exports. |
+| **Export** | A file made from a batch's approved products, kept so it can be downloaded again. Products not approved, or changed since, are left out with a reason. | CSV, Excel or a Shopify import file. |
+| **Shopify product CSV** | The file Shopify imports products from: one row per variant, and extra rows for extra photos, all sharing a URL handle. | Products arrive as drafts, not published. |
+| **URL handle** | Shopify's name for a product in its web address: lowercase letters, numbers and dashes. | `acme-glass-jug`. |
+| **Formula injection** | Text in a cell starting with `=`, `+`, `-` or `@`, which a spreadsheet may run as a formula. Exports make it inert. | `=HYPERLINK(...)` in a supplier's name becomes `'=HYPERLINK(...)`. |
+| **Signed link** | A web address to a private file that works for a limited time. | Photo links in an export work for 7 days; a download link for 15 minutes. |
+| **Confirmed variants** | Products a person said are versions of one product. The Shopify export lists them as one product with a Colour, Size or Style option. | Red and blue versions of a bottle. |
 | **Revision** | A product's change counter. A save from a page that loaded an older one is refused, so two tabs can't overwrite each other. | "This product changed since you opened it." |
 | **Edited copy** | Copy a person wrote by hand. Kept as written and never replaced automatically; checked only as warnings. | Version 3, written by you. |
 | **Fabrication** | An AI stating a specification that no source supports. The product must never do this. | Inventing "dishwasher safe". |

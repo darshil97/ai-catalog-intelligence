@@ -256,8 +256,8 @@ Resources:
                 # AWS doesn't support limiting this action to one instance.
                 Action: ec2:DescribeInstances
                 Resource: "*"
-        # Signs upload links, checks finished uploads, signs thumbnail links, and deletes files
-        # with their batch.
+        # Signs upload links, checks finished uploads, signs thumbnail links, writes exports
+        # (D41), and deletes files with their batch.
         - PolicyName: api-files
           PolicyDocument:
             Version: "2012-10-17"
@@ -271,10 +271,16 @@ Resources:
                 Action: s3:GetObject
                 Resource: !Sub ${Bucket.Arn}/prod/derived/*
               - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: !Sub ${Bucket.Arn}/prod/exports/*
+              - Effect: Allow
                 Action: s3:DeleteObject
                 Resource:
                   - !Sub ${Bucket.Arn}/prod/raw/*
                   - !Sub ${Bucket.Arn}/prod/derived/*
+                  - !Sub ${Bucket.Arn}/prod/exports/*
 
   # For local development and the live storage test. It can't touch prod/. Create its access
   # key in the console and keep it in a local AWS profile only.

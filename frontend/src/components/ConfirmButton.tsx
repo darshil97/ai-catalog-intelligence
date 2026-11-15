@@ -12,6 +12,8 @@ type Props = {
   onConfirm: () => void | Promise<void>;
   className?: string;
   disabled?: boolean;
+  /** Shows a small spinner while the action runs. */
+  busy?: boolean;
 };
 
 /**
@@ -27,6 +29,7 @@ export function ConfirmButton({
   onConfirm,
   className = "button",
   disabled = false,
+  busy = false,
 }: Props) {
   const [asking, setAsking] = useState(false);
 
@@ -36,6 +39,7 @@ export function ConfirmButton({
         type="button"
         className={className}
         disabled={disabled}
+        aria-busy={busy || undefined}
         onClick={() => setAsking(true)}
       >
         {label}

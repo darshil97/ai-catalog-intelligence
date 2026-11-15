@@ -7,6 +7,8 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     # Loaded lazily by both: the API presigns uploads, and the worker reads and writes files.
     "boto3>=1.43,<2",
+    # Excel files: the worker reads uploads, and the API writes exports (D41).
+    "openpyxl>=3.1,<4",
     "psycopg[binary,pool]>=3.3,<4",
     "pydantic>=2.14,<3",
     "python-dotenv>=1.2,<2",
@@ -25,7 +27,6 @@ worker = [
     "jinja2>=3.1,<4",
     "langchain-aws>=1.9,<2",
     "onnxruntime>=1.24,<2",
-    "openpyxl>=3.1,<4",
     "pdfplumber>=0.11.10,<0.12",
     "pillow>=13.0,<14",
     "pypdf>=7.0,<8",

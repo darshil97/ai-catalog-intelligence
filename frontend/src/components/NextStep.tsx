@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Working } from "@/components/Working";
 import { ApiError, api } from "@/lib/api";
 import type {
   BatchApproval,
@@ -11,9 +12,10 @@ import type {
   EnrichmentStarted,
 } from "@/lib/types";
 
-export type NextTab = "review" | "copy" | "checks";
+export type NextTab = "review" | "copy" | "checks" | "export";
 
 type Step = {
+  working?: boolean;
   title: string;
   text: string;
   reasons?: string[];
@@ -23,7 +25,7 @@ type Step = {
 
 /**
  * The one thing to do next on a processed batch, highlighted: decide open review items, then
- * write copy, then fix the checks' errors. When nothing is left, it says the batch is ready.
+ * write copy, then fix the checks' errors, approve, and export.
  */
 export function NextStep({
   batchId,
@@ -100,6 +102,7 @@ export function NextStep({
     };
   } else if (writing) {
     step = {
+      working: true,
       title: "Writing titles and bullets…",
       text: "Copy is being written from the settled values. This takes a few seconds per product.",
       action: { label: "Watch progress", run: () => onTab("copy") },
@@ -142,7 +145,11 @@ export function NextStep({
   } else if (approval && approval.approved > 0) {
     step = {
       title: `${plural(approval.approved, "product is", "products are")} approved`,
-      text: `${approval.approved} of ${total} approved for ${validation.profile_name}. Exporting arrives in the next update.`,
+      text: `${approval.approved} of ${total} approved for ${validation.profile_name}. Download them as CSV, Excel or a Shopify import file.`,
+      action: {
+        label: `Export ${plural(approval.approved, "product", "products")}`,
+        run: () => onTab("export"),
+      },
       done: true,
     };
   } else {
@@ -162,6 +169,9 @@ export function NextStep({
         <p className="eyebrow">{step.done ? "All done" : "Next step"}</p>
         <h2>{step.title}</h2>
         <p className="muted">{step.text}</p>
+        {step.working && (
+          <Working label="Writing copy from the settled values" compact />
+        )}
         {step.reasons && step.reasons.length > 0 && (
           <ul className="reasons">
             {step.reasons.slice(0, 4).map((reason) => (
@@ -183,6 +193,7 @@ export function NextStep({
           type="button"
           className="button primary large"
           disabled={busy}
+          aria-busy={busy || undefined}
           onClick={() => void step.action?.run()}
         >
           {step.action.label} →
