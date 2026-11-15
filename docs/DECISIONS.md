@@ -824,3 +824,29 @@ Being listed in Sydney doesn't mean a model can be used, as the Haiku 5.5 result
 - Export (M10) reads one function, `approved_products`, which returns only products whose approval still holds.
 - A change after approval, such as an edit, a review decision, a new photo, rewritten copy or a different marketplace, makes the product "changed since approval" until re-approved.
 - Rejected products drop out of duplicate checks, approval and export, but stay visible.
+
+## D41: Exports built by the API, with variants, photo links and safe cells
+
+**Status:** Approved by the owner on 2026-11-15 (M10), all eight decisions as recommended. The proposal is in [proposals/M10_EXPORT.md](proposals/M10_EXPORT.md). Changes D14, which placed export generation in the worker.
+
+**Decision:** The API builds an export on request from the batch's approved products (M9's `approved_products`), stores it in S3, and records it in `exports`. There are three formats:
+- **CSV:** UTF-8 with a byte-order mark.
+- **Excel:** Products, Sources and About sheets.
+- **Shopify product CSV:** plain UTF-8, products imported as drafts.
+
+Confirmed variant pairs become one Shopify product, with the option named after the attribute that differs. Photo links are signed for 7 days.
+
+**Owner's choices (2026-11-15):**
+1. The API builds exports, not the worker: they're ready instantly, and only the API's key can sign photo links for 7 days.
+2. CSV (with a byte-order mark), Excel (Products, Sources, About) and Shopify CSV (plain UTF-8).
+3. "These are variants" and "Not variants" on possible variants. Confirmed pairs are grouped under one Shopify handle.
+4. Shopify's columns are taken from its current help page, not from memory. Product Category is left blank.
+5. Accepted photos, linked for 7 days, and Shopify products imported as `draft`.
+6. CSV and Excel cells starting with `=`, `+`, `-`, `@`, a tab or a carriage return get a leading apostrophe. In the Shopify file those characters are removed and the change is listed.
+7. Download links are signed for 15 minutes on each click. Exports are listed per batch and removed with the batch, or after 31 days.
+8. One `Working` indicator shows progress wherever anything is underway, and is still when "reduce motion" is on.
+
+**Consequences:**
+- The API gains `openpyxl`, and its memory guard still applies.
+- If batches grow large, the same builders can run as a worker job.
+- Re-exporting renews photo links. An export older than 7 days needs exporting again before importing into Shopify.

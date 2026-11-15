@@ -45,6 +45,10 @@ def describe(event: Row) -> str:
         if action == "reject":
             return f"Rejected it: {_quote(after.get('reason'))}"
         return "Put it back to draft"
+    if kind == "variant":
+        if action == "confirmed":
+            return "Confirmed it and another product as variants of one product"
+        return "Said it and another product aren't variants"
     if kind == "duplicate":
         if action == "different":
             return "Marked it and its look-alike as different products"

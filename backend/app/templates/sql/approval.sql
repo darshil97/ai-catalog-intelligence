@@ -86,7 +86,7 @@ WHERE e.batch_id = %(batch_id)s
   AND (pa.product_id = %(product_id)s
        OR c.product_id = %(product_id)s
        OR (e.entity_type IN ('product_category', 'validation_issue', 'generated_content',
-                             'product_status', 'duplicate')
+                             'product_status', 'duplicate', 'variant')
            AND e.entity_id = %(product_id)s))
 ORDER BY e.created_at DESC
 LIMIT 200;

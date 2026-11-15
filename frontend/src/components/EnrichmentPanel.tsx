@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { Working } from "@/components/Working";
 import { ApiError, api } from "@/lib/api";
 import type {
   BatchEnrichment,
@@ -122,11 +123,16 @@ export function EnrichmentPanel({
         </div>
       )}
       {active && run && (
-        <p className="muted">
-          {run.status === "queued"
-            ? "Waiting for the worker to start…"
-            : `Writing… ${run.done} of ${run.total} done.`}
-        </p>
+        <Working
+          label={
+            run.status === "queued"
+              ? "Waiting for the worker to start…"
+              : `Writing copy… ${run.done} of ${run.total} done`
+          }
+          progress={
+            run.status === "queued" || !run.total ? null : run.done / run.total
+          }
+        />
       )}
       {!active && !paused && (
         <div className="actions">

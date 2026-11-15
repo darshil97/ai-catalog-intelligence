@@ -11,7 +11,8 @@
 - **Normalization** (`normalized_values`, `product_attributes`, `variant_candidates`, seeded `categories`, category columns on `products`, two more review kinds): migration `0009` (M6), applied to `production` and `test`. `dev` is still at `0005`.
 - **Enrichment** (`generated_content`, enrichment columns on `products`, `paused` runs with `pause_reason`): migration `0010` (M7), applied to `production` (by CI) and `test`. `dev` is still at `0005`.
 - **Validation** (`validation_overrides`, `batches.target_marketplace`): migration `0011` (M8), applied to `production` (by CI) and `test`. `dev` is still at `0005`.
-- **Human review** (`products.revision`, approval, rejection and `duplicate_of` columns): migration `0012` (M9), applied to `test` only so far.
+- **Human review** (`products.revision`, approval, rejection and `duplicate_of` columns): migration `0012` (M9), applied to `production` (by CI) and `test`. `dev` is still at `0005`.
+- **Export** (`exports`): migration `0013` (M10), applied to `test`; CI applies it to `production` when M10 ships.
 
 This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
@@ -482,6 +483,8 @@ Since M3 this also holds rows and cells that couldn't be used in a run that othe
 ### `exports`
 
 `id`, `batch_id` FK, `owner_user_id` FK, `format` (`csv`, `xlsx`, `shopify_csv`), `status`, `s3_key`, `product_count`, `created_at`.
+
+**As built (M10, migration `0013`):** also `error`, `profile` (the marketplace profile the products were approved under), `product_ids` UUID[] (exactly which products went in), `left_out_count`, `links_expire_at` (when the signed photo links in the file stop working, 7 days after it was made; null when it has no photos), `size_bytes`, `sha256`, `notes` JSONB (changes made for safety, variants kept apart, and so on), `created_by`. `status` is `ready` or `failed`. The file is stored at `{prefix}/exports/{owner}/{batch}/{export}/{name}.csv|xlsx` and downloaded through a 15-minute link. **Index:** `(batch_id, created_at)`.
 
 ---
 

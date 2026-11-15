@@ -9,6 +9,7 @@ import { ImageGrid } from "@/components/ImageGrid";
 import { NextStep } from "@/components/NextStep";
 import { ChecksPanel } from "@/components/ChecksPanel";
 import { EnrichmentPanel } from "@/components/EnrichmentPanel";
+import { ExportPanel } from "@/components/ExportPanel";
 import { ReviewPanel } from "@/components/ReviewPanel";
 import { describeLocation, FLAG_TEXT } from "@/lib/location";
 import type {
@@ -21,13 +22,17 @@ import type {
   DocumentList,
   ProductList,
   RunError,
+  VariantDecided,
   VariantList,
+  VariantPair,
   Sheet,
   SheetList,
 } from "@/lib/types";
+import { ApiError, api, jsonBody } from "@/lib/api";
 import { useApiResource } from "@/lib/useApiResource";
 
-type Tab = "products" | "review" | "copy" | "checks" | "photos" | "sources";
+type Tab =
+  "products" | "review" | "copy" | "checks" | "export" | "photos" | "sources";
 
 const MAPPING_TEXT: Record<Sheet["mapping_source"], string> = {
   none: "",
@@ -115,6 +120,7 @@ export function Extraction({
     { id: "review", label: "Review" },
     { id: "copy", label: "Copy" },
     { id: "checks", label: "Checks" },
+    { id: "export", label: "Export" },
     { id: "photos", label: "Photos" },
     { id: "sources", label: "Sources" },
   ];
@@ -209,8 +215,9 @@ export function Extraction({
             <section className="section">
               <h2>Possible variants</h2>
               <p className="muted">
-                These look like versions of one product. They stay separate:
-                nothing is merged.
+                These look like versions of one product. Confirm a pair and the
+                Shopify export lists them as one product with options; the
+                products themselves stay separate.
               </p>
               <ul className="list">
                 {(variants.data?.items ?? []).map((pair) => (
@@ -221,6 +228,13 @@ export function Extraction({
                     <span className="muted">
                       {pair.reasons.map((reason) => reason.text).join(" ")}
                     </span>
+                    <VariantActions
+                      pair={pair}
+                      onDecided={() => {
+                        variants.reload();
+                        setVersion((current) => current + 1);
+                      }}
+                    />
                   </li>
                 ))}
               </ul>
@@ -249,6 +263,13 @@ export function Extraction({
         <EnrichmentPanel batchId={batchId} version={version} />
       )}
       {tab === "checks" && <ChecksPanel batchId={batchId} version={version} />}
+      {tab === "export" && (
+        <ExportPanel
+          batchId={batchId}
+          approval={approval.data}
+          version={version}
+        />
+      )}
       {tab === "photos" && <ImageGrid batchId={batchId} version={version} />}
       {tab === "sources" && (
         <>
@@ -295,6 +316,77 @@ export function Extraction({
         </>
       )}
     </>
+  );
+}
+
+const VARIANT_TEXT: Record<VariantPair["status"], string> = {
+  flagged: "",
+  confirmed: "Confirmed as variants",
+  dismissed: "Not variants",
+};
+
+/** Confirm or dismiss a possible variant pair. Either way both products need approving again. */
+function VariantActions({
+  pair,
+  onDecided,
+}: {
+  pair: VariantPair;
+  onDecided: () => void;
+}) {
+  const [busy, setBusy] = useState<VariantPair["status"] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function decide(decision: "confirmed" | "dismissed") {
+    setBusy(decision);
+    setError(null);
+    try {
+      await api<VariantDecided>(
+        `/variants/${pair.id}/decision`,
+        jsonBody("POST", { decision }),
+      );
+      onDecided();
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError ? caught.message : "Couldn't save that.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <span className="variant-actions">
+      {pair.status !== "flagged" && (
+        <span className="badge">{VARIANT_TEXT[pair.status]}</span>
+      )}
+      {pair.status !== "confirmed" && (
+        <button
+          type="button"
+          className="button small"
+          disabled={busy !== null}
+          aria-busy={busy === "confirmed" || undefined}
+          onClick={() => void decide("confirmed")}
+        >
+          These are variants
+        </button>
+      )}
+      {pair.status !== "dismissed" && (
+        <button
+          type="button"
+          className="button small"
+          disabled={busy !== null}
+          aria-busy={busy === "dismissed" || undefined}
+          onClick={() => void decide("dismissed")}
+        >
+          Not variants
+        </button>
+      )}
+      {error && (
+        <span className="error" role="alert">
+          {error}
+        </span>
+      )}
+    </span>
   );
 }
 

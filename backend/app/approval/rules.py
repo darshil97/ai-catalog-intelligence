@@ -30,6 +30,7 @@ def fingerprint(product: ProductData, profile: str) -> str:
         row.get("content_status"),
         row.get("input_fingerprint"),
         sorted(str(photo["image_id"]) for photo in product.photos),
+        row.get("variant_decisions") or [],
     ]
     return hashlib.sha256(json.dumps(payload, default=str).encode()).hexdigest()
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { RequireActive } from "@/components/Account";
 import { checkSummary } from "@/components/ChecksPanel";
@@ -15,6 +15,7 @@ import {
   ValueEditor,
 } from "@/components/ProductReview";
 import { ENRICHMENT_STATE_TEXT } from "@/components/EnrichmentPanel";
+import { Working } from "@/components/Working";
 import { ApiError, api, jsonBody } from "@/lib/api";
 import { describeLocation, FLAG_TEXT, VALUE_FLAG_TEXT } from "@/lib/location";
 import type {
@@ -400,8 +401,26 @@ function GeneratedSection({
 }) {
   const [editingCopy, setEditingCopy] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  // The copy version when writing started; cleared once a new version arrives.
+  const [writingFrom, setWritingFrom] = useState<number | null | undefined>(
+    undefined,
+  );
   const [error, setError] = useState<string | null>(null);
+  // Writing until a new version arrives or writing fails.
+  const writing =
+    writingFrom !== undefined &&
+    content.version === writingFrom &&
+    content.state !== "failed";
+  useEffect(() => {
+    if (!writing) return;
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      // Copy takes seconds; stop asking after three minutes.
+      if (Date.now() - started > 180_000) setWritingFrom(undefined);
+      else onChange();
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [writing, onChange]);
   const claims = (field: GeneratedClaim["field"]) =>
     content.claims.filter((claim) => claim.field === field);
   const title = claims("title")[0];
@@ -409,13 +428,12 @@ function GeneratedSection({
   async function regenerate() {
     setBusy(true);
     setError(null);
-    setMessage(null);
     try {
       await api<EnrichmentStarted>(
         `/batches/${batchId}/enrichment`,
         jsonBody("POST", { product_ids: [productId] }),
       );
-      setMessage("Writing now. Reload in a minute to see it.");
+      setWritingFrom(content.version);
     } catch (caught) {
       setError(
         caught instanceof ApiError ? caught.message : "Couldn't start writing.",
@@ -504,7 +522,8 @@ function GeneratedSection({
             <button
               type="button"
               className="button"
-              disabled={busy}
+              disabled={busy || writing}
+              aria-busy={busy || undefined}
               onClick={regenerate}
             >
               {busy
@@ -532,7 +551,7 @@ function GeneratedSection({
           </button>
         </div>
       )}
-      {message && <p className="muted">{message}</p>}
+      {writing && <Working label="Writing copy…" compact />}
       {error && (
         <p className="error" role="alert">
           {error}

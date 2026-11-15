@@ -61,9 +61,16 @@ def load_batch(conn: Connection[Any], owner: str, batch_id: UUID) -> BatchContex
     paths = category_paths(conn) if products else {}
     enrichment = get_enrichment_config()
 
+    decided: dict[UUID, list[str]] = defaultdict(list)
+    for pair, status in pairs.items():
+        if status != "flagged":
+            for product_id in pair:
+                other = next(iter(pair - {product_id}), product_id)
+                decided[product_id].append(f"{other}:{status}")
     out = []
     for product in products:
         attribute_rows = rows.get(product["id"], [])
+        product = {**product, "variant_decisions": sorted(decided.get(product["id"], []))}
         category = {
             "path": paths.get(product["category_id"]) if product["category_id"] else None,
             "source": product["category_source"],

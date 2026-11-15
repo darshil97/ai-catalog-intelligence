@@ -554,3 +554,32 @@ export type ReviewSummary = {
     open: number;
   }[];
 };
+
+// Exports of approved products (M10, D41).
+
+export type ExportFormat = "csv" | "xlsx" | "shopify_csv";
+
+export type ExportFile = {
+  id: string;
+  batch_id: string;
+  format: ExportFormat;
+  status: string;
+  profile: string;
+  product_count: number;
+  left_out_count: number;
+  links_expire_at: string | null;
+  size_bytes: number | null;
+  notes: string[];
+  created_at: string;
+};
+
+export type ExportMade = ExportFile & {
+  download_url: string;
+  left_out: { product_key: string; reason: string }[];
+};
+
+export type ExportList = { batch_id: string; items: ExportFile[] };
+
+export type DownloadLink = { url: string };
+
+export type VariantDecided = { id: string; status: VariantPair["status"] };
