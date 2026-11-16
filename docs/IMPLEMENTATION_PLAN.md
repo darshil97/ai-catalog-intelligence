@@ -20,7 +20,7 @@ Each module gets its own proposal and approval before work starts, and review af
 | M7 | Catalog enrichment | M6 | Completed |
 | M8 | Catalog validation | M6, M7 | Completed |
 | M9 | Human review | M5B, M8 | Completed |
-| M10 | Export | M9 | In Progress |
+| M10 | Export | M9 | Completed |
 
 **Delivery order:** M0A → M0B → M1 → M2 → M3 → M4 → M5A → M5B → M6 → M7 → M8 → M9 → M10.
 
@@ -606,7 +606,7 @@ Unrelated and pre-existing: running `test_ingest_kinds` before `test_vision` in 
 
 ## M10 Export
 
-**Status:** proposal approved by the owner on 2026-11-15 (D41), all eight decisions as recommended, including a progress animation across the app. In progress on branch `m10-export`.
+**Status:** proposal approved by the owner on 2026-11-15 (D41), all eight decisions as recommended, including a progress animation across the app. **Completed** on 2026-11-16: shipped to production, then accepted by the owner's live test (approved Vardhan products exported as CSV and Excel, with photo links and nothing left out), and a clean log check. After the live test, two fixes shipped: download links save the file instead of opening it, CSV and Excel no longer repeat Name and Brand, and the progress strip now reaches "Approve and export". The production logs show no Shopify file or variant decision made yet; both are covered by tests. **This completes the MVP plan.**
 
 **Scope**
 - CSV, Excel and Shopify-compatible CSV (built by the API; see D41).

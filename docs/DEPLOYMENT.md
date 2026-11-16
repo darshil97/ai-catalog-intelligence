@@ -228,7 +228,7 @@ A new Neon branch starts with **the same role passwords as its parent**, so a pa
 
 ## Worker and AWS
 
-**Status:** stack `catalog-worker` created on 2026-11-08. Instance `<WORKER_INSTANCE_ID>`, normally stopped. API user `catalog-api` has one access key, used by Render.
+**Status:** stack `catalog-worker` created on 2026-11-08. Instance `<WORKER_INSTANCE_ID>`, normally stopped. API user `catalog-api` has one access key, used by Render. Updated on 2026-11-15 for M10 (a reviewed change set, changing only `catalog-api`'s `api-files` policy): the API may also put, get and delete `prod/exports/*`.
 
 The template is [worker-stack.yaml](../backend/infra/aws/worker-stack.yaml). Region is always `ap-southeast-2`, because the account's policy denies other regions.
 
