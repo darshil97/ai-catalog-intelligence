@@ -12,7 +12,7 @@
 - **Enrichment** (`generated_content`, enrichment columns on `products`, `paused` runs with `pause_reason`): migration `0010` (M7), applied to `production` (by CI) and `test`. `dev` is still at `0005`.
 - **Validation** (`validation_overrides`, `batches.target_marketplace`): migration `0011` (M8), applied to `production` (by CI) and `test`. `dev` is still at `0005`.
 - **Human review** (`products.revision`, approval, rejection and `duplicate_of` columns): migration `0012` (M9), applied to `production` (by CI) and `test`. `dev` is still at `0005`.
-- **Export** (`exports`): migration `0013` (M10), applied to `test`; CI applies it to `production` when M10 ships.
+- **Export** (`exports`): migration `0013` (M10), applied to `production` (by CI) and `test`. `dev` is still at `0005`.
 
 This design guides the migrations written in each module, and it may be refined when each module is proposed. Tables are added only by the module that needs them.
 
