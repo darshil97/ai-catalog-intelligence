@@ -17,15 +17,13 @@ Parameters:
     Default: 20
   ImageId:
     # A fixed ID rather than "latest Ubuntu", so a later stack update can't replace the instance
-    # just because a newer image was released. This is Ubuntu 24.04 in ap-southeast-2.
+    # just because a newer image was released. Use an Ubuntu 24.04 AMI in ap-southeast-2.
+    # ImageId, VpcId and SubnetId have no defaults: pass your own as stack parameters.
     Type: AWS::EC2::Image::Id
-    Default: <AMI_ID>
   VpcId:
     Type: AWS::EC2::VPC::Id
-    Default: <VPC_ID>
   SubnetId:
     Type: AWS::EC2::Subnet::Id
-    Default: <SUBNET_ID>
   RepoSshUrl:
     Type: String
     Default: git@github.com:darshil97/ai-catalog-intelligence.git

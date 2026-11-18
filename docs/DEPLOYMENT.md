@@ -40,7 +40,7 @@ Set under the service's **Environment** tab. Saving redeploys the service.
 | `CORS_ORIGINS` | `https://ai-catalog-intelligence.vercel.app`. Comma-separated, no trailing slash. | No |
 | `DATABASE_URL` | Neon `production` branch, connection string with pooling on. | **Yes** |
 | `NEON_AUTH_BASE_URL` | Neon Auth URL of the `production` branch, such as `https://ep-xxx.neonauth.ap-southeast-2.aws.neon.tech/neondb/auth`. The API derives the JWKS URL, issuer and audience from it. | No |
-| `ACCESS_ALLOWLIST` | Optional. Comma-separated emails always let in. Defaults to the owner's address in `config.yaml`. | No |
+| `ACCESS_ALLOWLIST` | Comma-separated emails always let in, such as the owner's. Empty by default, so set it. | No |
 | `SIGNUPS_ENABLED` | Optional, default `false`. Only the owner turns it on, M7 at the earliest. | No |
 | `S3_PREFIX` | `prod`. The default, `dev`, is refused by `catalog-api`'s permissions (D29). | No |
 | `S3_BUCKET` | Optional. Defaults to `ai-catalog-intelligence`. | No |
@@ -248,6 +248,8 @@ ssh-keygen -t ed25519 -N "" -C catalog-worker -f catalog_deploy
 ```
 
 Delete both key files once it's stored.
+
+The stack takes `ImageId` (an Ubuntu 24.04 AMI), `VpcId` and `SubnetId` as parameters, with no defaults. Pass the same values on every stack update, or CloudFormation will replace the instance.
 
 ### After creating the stack
 

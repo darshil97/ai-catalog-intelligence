@@ -36,7 +36,8 @@ def _refuse_production_database_locally() -> None:
     if get_app_config()["environment"] != "local":
         return
     host = urlparse(get_database_config()["url"]).hostname or ""
-    if get_worker_config()["production_db_endpoint"] in host:
+    endpoint = get_worker_config()["production_db_endpoint"]
+    if endpoint and endpoint in host:
         logger.error("Refusing to start: a local worker can't use the production database")
         sys.exit(2)
 

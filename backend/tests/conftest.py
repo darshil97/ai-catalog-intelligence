@@ -13,7 +13,10 @@ from dotenv import dotenv_values
 
 BACKEND = Path(__file__).resolve().parents[1]
 _DOTENV = dotenv_values(BACKEND / ".env")
-_PRODUCTION_ENDPOINT = "<PROD_DB_ENDPOINT>"
+# The ep-... ID of the production branch, kept out of the repo. Unset skips that part of the check.
+_PRODUCTION_ENDPOINT = (
+    os.environ.get("PRODUCTION_DB_ENDPOINT") or _DOTENV.get("PRODUCTION_DB_ENDPOINT") or ""
+)
 
 
 def _test_database_url() -> str:
@@ -26,7 +29,7 @@ def _test_database_url() -> str:
         return ""
     host = urlparse(url).hostname or ""
     dev_host = urlparse(_DOTENV.get("DATABASE_URL") or "").hostname
-    if _PRODUCTION_ENDPOINT in host or host == dev_host:
+    if (_PRODUCTION_ENDPOINT and _PRODUCTION_ENDPOINT in host) or host == dev_host:
         raise RuntimeError(f"TEST_DATABASE_URL points at a real database: {host}")
     return url
 

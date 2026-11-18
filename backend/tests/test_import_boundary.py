@@ -106,7 +106,8 @@ def test_local_worker_refuses_the_production_database() -> None:
         env={
             "PATH": "/usr/bin",
             "APP_ENV": "local",
-            "DATABASE_URL": "postgresql://u:p@<PROD_DB_ENDPOINT>-pooler.example/db",
+            "DATABASE_URL": "postgresql://u:p@ep-prod-example-pooler.example/db",
+            "PRODUCTION_DB_ENDPOINT": "ep-prod-example",
         },
     )
     assert result.returncode == 2

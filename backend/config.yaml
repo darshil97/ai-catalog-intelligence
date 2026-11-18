@@ -53,7 +53,7 @@ access:
   # emails can use the app, and everyone else sees a waitlist message.
   signups_enabled: ${SIGNUPS_ENABLED:-false}
   # Comma-separated, compared case-insensitively. Allowlisted emails ignore the user cap.
-  allowlisted_emails: ${ACCESS_ALLOWLIST:-owner@example.com}
+  allowlisted_emails: ${ACCESS_ALLOWLIST:-}
   # New sign-ups beyond this many active users are waitlisted.
   max_total_users: 25
 
@@ -498,8 +498,9 @@ worker:
   reaper_interval_seconds: 60
   # A job running longer than this is treated as stuck, and the process exits.
   max_job_seconds: 1800
-  # A local worker refuses to start against this database endpoint. Not a secret.
-  production_db_endpoint: <PROD_DB_ENDPOINT>
+  # A local worker refuses to start against this database endpoint (the ep-... part of the
+  # production host). Set PRODUCTION_DB_ENDPOINT in .env; unset skips the check.
+  production_db_endpoint: ${PRODUCTION_DB_ENDPOINT:-}
 
 pipelines:
   noop:

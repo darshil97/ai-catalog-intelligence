@@ -33,3 +33,6 @@ samples/
 
 # UI design options to compare by hand (not part of the app)
 ui-options/
+
+# Private notes: real deployment IDs kept out of the public repo
+.private/
